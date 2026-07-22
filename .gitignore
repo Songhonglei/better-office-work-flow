@@ -1,0 +1,25 @@
+# Secrets & credentials
+*.env
+.env.*
+secrets/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Sensitive files
+*.key
+*.pem
+*.p12
+*.keystore
+id_rsa
+id_rsa.pub
