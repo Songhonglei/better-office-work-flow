@@ -135,7 +135,7 @@ def extract(text: str) -> dict:
     m = re.search(r"名称[:：]\s*([^\s]+)", text)          # 购买方名称（购/销同模板，第一个）
     if m:
         f["buyer"] = m.group(1)
-    m = re.search(r"销\s*名称[:：]\s*([^\s]+)", text)     # 销售方名称
+    m = re.search(r"销售方\s*名称[:：]\s*([^\s]+)", text)     # 销售方名称
     if m:
         f["seller"] = m.group(1)
     lines = text.split("\n")

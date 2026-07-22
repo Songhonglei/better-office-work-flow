@@ -6,7 +6,7 @@ description: >
 
 # Invoice Auto Forward — 邮箱发票自动转发
 
-- **Version**: 1.0.0
+- **Version**: 1.0.1
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/invoice-auto-forward
