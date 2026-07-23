@@ -25,16 +25,18 @@ import datetime
 import imaplib
 import json
 import os
+import random
 import re
 import smtplib
 import sys
+import time
 from email import message_from_bytes
 from email.header import Header, decode_header, make_header
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-__version__ = "1.0.0"
+__version__ = "1.0.3"
 
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.workbuddy/invoice-forward/config.json")
 DEFAULTS = {
@@ -52,7 +54,50 @@ DEFAULTS = {
                     "销售方：{seller}\n物品：{item}\n价税合计：{amount}",
     },
     "state_file": "~/.workbuddy/invoice-forward/processed.json",
+    "send": {
+        "_comment": "发送节奏（防反垃圾风控）。interval=每封最小间隔秒；jitter=额外随机秒上限；batch_limit=单批最多发送封数(0=不限)。163/126 等严格风控邮箱建议 interval>=3。",
+        "interval": 0,
+        "jitter": 0,
+        "batch_limit": 0,
+    },
 }
+
+
+# ---------- 邮箱服务商标识（provider preset）----------
+# 仅指定 provider 即可自动填入对应 IMAP/SMTP 主机与端口，免去手动查 host。
+# 支持名称（163/126/qq）或完整域名（163.com / mail.126.com 等）。
+_PROVIDER_HOSTS = {
+    "qq":      ("imap.qq.com", 993, "smtp.qq.com", 465),
+    "foxmail": ("imap.qq.com", 993, "smtp.qq.com", 465),
+    "163":     ("imap.163.com", 993, "smtp.163.com", 465),
+    "126":     ("imap.126.com", 993, "smtp.126.com", 465),
+    "yeah":    ("imap.yeah.net", 993, "smtp.yeah.net", 465),
+}
+# 域名（含子域）后缀 → provider 名
+_DOMAIN_TO_PROVIDER = {
+    "qq.com": "qq", "foxmail.com": "foxmail",
+    "163.com": "163", "126.com": "126", "yeah.net": "yeah",
+}
+PROVIDER_PRESETS = _PROVIDER_HOSTS  # 保持原名，供潜在调用
+
+
+def resolve_provider(acc):
+    """若配置指定 provider，用预设覆盖 imap/smtp host/port；否则保留显式 host。"""
+    prov = (acc.get("provider") or "").strip().lower()
+    if not prov:
+        return acc
+    preset = _PROVIDER_HOSTS.get(prov)
+    if preset is None:
+        # 也允许直接写完整域名（如 163.com / mail.126.com）
+        dom = prov.split("@")[-1]
+        key = _DOMAIN_TO_PROVIDER.get(dom) or _DOMAIN_TO_PROVIDER.get(dom.split(".", 1)[-1])
+        if key:
+            preset = _PROVIDER_HOSTS[key]
+    if preset:
+        acc["imap_host"], acc["imap_port"], acc["smtp_host"], acc["smtp_port"] = preset
+    else:
+        sys.stderr.write("警告：未知的 provider=%r，将使用配置中的 imap_host/smtp_host\n" % prov)
+    return acc
 
 
 # ---------- 配置与凭证 ----------
@@ -72,7 +117,9 @@ def load_config(path):
         cfg = json.load(open(path, encoding="utf-8"))
     except Exception as e:
         sys.exit("配置文件 JSON 解析失败：%s" % e)
-    return _merge(DEFAULTS, cfg), path
+    cfg = _merge(DEFAULTS, cfg)
+    resolve_provider(cfg["account"])
+    return cfg, path
 
 
 def load_cred(secrets_path):
@@ -304,9 +351,20 @@ def process(cfg, days, do_send):
     todo = [(u, k, s) for u, k, s in cand if k not in state]
     print("[待办] 未处理 %d 封（其余 %d 封已去重跳过）" % (len(todo), len(cand) - len(todo)))
 
-    sent, skipped, no_pdf, failed = [], [], [], []
+    sent, skipped, no_pdf, failed, deferred = [], [], [], [], []
+    send_cfg = cfg.get("send", {})
+    interval = int(send_cfg.get("interval", 0) or 0)
+    jitter = int(send_cfg.get("jitter", 0) or 0)
+    batch_limit = int(send_cfg.get("batch_limit", 0) or 0)
+    sent_count = 0
     smtp = SmtpSession(user, code, cfg) if do_send else None
-    for uid, key, subj in todo:
+    if do_send and (interval or batch_limit):
+        print("[节奏] 每封间隔 %ss（±%ss），单批上限 %s 封"
+              % (interval, jitter, batch_limit or "无"))
+    for idx, (uid, key, subj) in enumerate(todo):
+        if batch_limit and sent_count >= batch_limit:
+            deferred.append(subj)
+            continue
         pdf, fname = imap_fetch_pdf(imap, uid)
         if not pdf:
             no_pdf.append(subj)
@@ -333,10 +391,16 @@ def process(cfg, days, do_send):
                 failed.append((subject, str(e)[:100]))  # 不写状态，下轮自动重试
                 continue
             sent.append(subject)
+            sent_count += 1
             state[key] = {"status": "sent", "subject": subject}
             save_state(cfg["state_file"], state)  # 每发一封即落盘：中途崩溃重跑也不会重发
+            # 发送节奏：模拟人类停顿，避免被 163/126 等严格风控判为群发机器人
+            more = (idx < len(todo) - 1) and not (batch_limit and sent_count >= batch_limit)
+            if interval and more:
+                time.sleep(random.uniform(interval, interval + jitter))
         else:
             sent.append(subject + "（预览未发送）")
+            sent_count += 1
         if f["invoice_no"]:
             # 同轮内按发票号去重：scan 预览与 run 真实发送必须一致，
             # 否则预览会漏报重复（同一发票被不同邮件多次投递时）。
@@ -348,9 +412,10 @@ def process(cfg, days, do_send):
     if do_send:
         save_state(cfg["state_file"], state)  # 落盘 skipped/no_pdf/dup 条目
 
-    summary = "[完成] %s %d / 跳过 %d / 无PDF待人工 %d%s" % (
+    summary = "[完成] %s %d / 跳过 %d / 无PDF待人工 %d%s%s" % (
         "已发送" if do_send else "将发送", len(sent), len(skipped), len(no_pdf),
-        " / 发送失败 %d" % len(failed) if failed else "")
+        " / 发送失败 %d" % len(failed) if failed else "",
+        " / 本批上限延后 %d（下轮继续）" % len(deferred) if deferred else "")
     print(summary)
     for s in sent:
         print("  ✅", s)
@@ -358,6 +423,8 @@ def process(cfg, days, do_send):
         print("  ⚪ 跳过:", s)
     for s in no_pdf:
         print("  ⚠️ 无PDF:", s)
+    for s in deferred:
+        print("  ⏸️ 延后:", s)
     for s, err in failed:
         print("  ❌ 发送失败: %s（%s）" % (s, err))
 
@@ -370,6 +437,7 @@ def process(cfg, days, do_send):
                 fp.write(f"# 发票转发报告 {now:%Y-%m-%d %H:%M}\n\n- 范围：近 {days} 天；候选 {len(cand)} 封\n- {summary}\n")
                 fp.write("\n".join("- ✅ " + s for s in sent))
                 fp.write("\n".join("\n- ⚠️ 无PDF: " + s for s in no_pdf))
+                fp.write("\n".join("\n- ⏸️ 延后(本批上限): " + s for s in deferred))
                 fp.write("\n".join("\n- ❌ 发送失败: %s（%s）" % (s, err) for s, err in failed))
             print("[报告]", report)
         except OSError as e:

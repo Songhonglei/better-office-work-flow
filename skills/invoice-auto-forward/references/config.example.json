@@ -1,7 +1,8 @@
 {
   "version": 1,
   "account": {
-    "_comment": "邮箱服务器配置。默认为 QQ 邮箱；163/126 等仅需改 host（见 troubleshooting.md）。授权码不在这里，在 secrets_file 指向的文件里。",
+    "_comment": "邮箱服务器配置。两种写法二选一：① 写 provider（'qq'/'163'/'126'/'yeah' 或域名后缀 163.com/126.com），自动填入 host/port；② 直接写 imap_host/smtp_host/port 覆盖预设。授权码不在这里，在 secrets_file 指向的文件里。",
+    "provider": "qq",
     "imap_host": "imap.qq.com",
     "imap_port": 993,
     "smtp_host": "smtp.qq.com",
@@ -19,10 +20,16 @@
     "buyer_whitelist": []
   },
   "forward": {
-    "_comment": "转发设置。模板占位符：{item} 物品 {amount} 价税合计 {date} 开票日期 {invoice_no} 发票号码 {seller} 销售方 {buyer} 购买方",
+    "_comment": "转发设置。模板占位符：{item} 物品 {amount} 价税合计 {date} 开票日期 {invoice_no} 发票号码 {seller} 销售方 {buyer} 购买方。163/126 建议加 {invoice_no} 提升单封区分度。",
     "to": ["finance@example.com"],
     "subject_tpl": "{item} {amount} {date}",
     "body_tpl": "发票号码：{invoice_no}\n开票日期：{date}\n购买方（抬头）：{buyer}\n销售方：{seller}\n物品：{item}\n价税合计：{amount}"
+  },
+  "send": {
+    "_comment": "发送节奏（防反垃圾风控）。interval=每封最小间隔秒；jitter=额外随机秒上限；batch_limit=单批最多发送封数(0=不限)。QQ 可保持 0；163/126 等严格风控邮箱建议 interval>=3、batch_limit<=20。",
+    "interval": 0,
+    "jitter": 0,
+    "batch_limit": 0
   },
   "state_file": "~/.workbuddy/invoice-forward/processed.json"
 }

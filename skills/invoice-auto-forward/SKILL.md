@@ -1,7 +1,7 @@
 ---
 name: invoice-auto-forward
-description: 自动扫描邮箱（默认QQ邮箱）里的发票邮件，解析发票PDF后按标准化模板转发给指定收件人（如财务/行政），支持抬头白名单过滤、定时无人值守运行。This skill should be used when 用户想把邮箱收到的发票自动转发给他人、设置发票自动归档/报销流程、配置发票转发规则（授权码/收件人/主题模板），或触发词包括：发票转发、发票自动转发、QQ邮箱发票、转发发票给财务、invoice forward。
-version: 1.0.2
+description: 自动扫描邮箱（支持 QQ/163/126 等主流邮箱，provider 一键切换）里的发票邮件，解析发票PDF后按标准化模板转发给指定收件人（如财务/行政），支持抬头白名单过滤、定时无人值守运行、发送节奏控制（防反垃圾风控）。This skill should be used when 用户想把邮箱收到的发票自动转发给他人、设置发票自动归档/报销流程、配置发票转发规则（授权码/收件人/主题模板），或触发词包括：发票转发、发票自动转发、QQ邮箱发票、163邮箱发票、126邮箱发票、转发发票给财务、invoice forward。
+version: 1.0.3
 python_optional: ["pdfplumber", "pymupdf", "fitz"]
 metadata: {"openclaw": {"envVars": [{"name": "INVOICE_FORWARD_CONFIG", "required": false, "description": "自定义 config.json 路径（可选）"}]}}
 ---
@@ -26,11 +26,12 @@ metadata: {"openclaw": {"envVars": [{"name": "INVOICE_FORWARD_CONFIG", "required
 ## Setup 引导流程（首次使用，按序执行）
 
 1. **检查依赖**：直接运行 `python3 scripts/invoice_forward.py check --install-deps`——缺少 `pdfplumber`/`pymupdf` 时会自动 pip 安装到当前 Python 环境（执行前向用户说明将安装这两个库）；若用户环境禁止自动安装，改为给出 `pip install pdfplumber pymupdf` 命令让其自行执行。
-2. **收集凭证**：向用户询问邮箱地址与 SMTP/IMAP 授权码（QQ 邮箱获取路径：网页版 → 设置 → 账号 → POP3/IMAP/SMTP 服务 → 生成授权码，详见 references/troubleshooting.md）。写入 secrets 文件（默认 `~/.workbuddy/secrets/invoice-forward.env`），内容形如：
+2. **收集凭证**：向用户询问邮箱地址与 SMTP/IMAP 授权码。QQ 获取路径：网页版 → 设置 → 账号 → POP3/IMAP/SMTP 服务 → 生成授权码；163/126 获取路径：网页版 → 设置 → 开启 POP3/SMTP/IMAP 服务（默认禁用）→ 短信验证 → 生成授权码（详见 references/troubleshooting.md）。写入 secrets 文件（默认 `~/.workbuddy/secrets/invoice-forward.env`），内容形如：
    ```
    MAIL_USER=user@qq.com
    MAIL_AUTH_CODE=xxxxxxxxxxxxxxxx
    ```
+   若邮箱非 QQ，在步骤 4 生成的 config.json 的 `account` 中写入 `"provider": "163"`（或 `"126"` 等），脚本自动填入对应 IMAP/SMTP 主机与端口。
    随后立即 `chmod 600`。**授权码只进 secrets 文件，绝不写入 config.json、SKILL.md 或任何 skill 包内文件。**
 3. **收集转发规则**（逐项询问，给默认值，允许用户直接回车采用）：
    - 抬头白名单：默认空 = 全部转发；填写后仅转发购买方抬头匹配的发票
@@ -59,6 +60,8 @@ metadata: {"openclaw": {"envVars": [{"name": "INVOICE_FORWARD_CONFIG", "required
 - 去重：按 Message-ID + 发票号双重去重，`run` 重复执行不会重复转发（状态存于 `~/.workbuddy/invoice-forward/processed.json`）。
 - 无 PDF 的发票邮件（链接型/图片型）：跳过并列入"无PDF待人工"，不阻塞其他邮件。
 - 防循环：收件人地址发来的邮件自动排除。
+- 发送节奏（防反垃圾风控）：`config.json` 的 `send` 段可设 `interval`（每封最小间隔秒）、`jitter`（额外随机秒上限）、`batch_limit`（单批上限，超出下轮续跑）。QQ 默认 0 即可；163/126 等严格风控邮箱建议 `interval>=3`、`batch_limit<=20`，主题模板建议加 `{invoice_no}` 提升区分度。
+- 多邮箱：支持在 `account.provider` 写 `qq`/`163`/`126`/`yeah` 或域名后缀自动选主机；也可直接写 `imap_host`/`smtp_host` 覆盖。
 - 凭证安全：secrets 文件 chmod 600；排查问题时不得把授权码打印到聊天或日志。
 - 发送侧记录：QQ 邮箱默认不把 SMTP 发出的邮件存入网页版「已发送」，验证送达以收件方为准（用户可在邮箱设置中开启保存）。
 
