@@ -1,15 +1,12 @@
 ---
 name: invoice-auto-forward
-description: >
-  自动扫描邮箱（默认QQ邮箱）里的发票邮件，解析发票PDF后按标准化模板转发给指定收件人（如财务/行政），支持抬头白名单过滤、定时无人值守运行。This skill should be used when 用户想把邮箱收到的发票自动转发给他人、设置发票自动归档/报销流程、配置发票转发规则（授权码/收件人/主题模板），或触发词包括：发票转发、发票自动转发、QQ邮箱发票、转发发票给财务、invoice forward。
+description: 自动扫描邮箱（默认QQ邮箱）里的发票邮件，解析发票PDF后按标准化模板转发给指定收件人（如财务/行政），支持抬头白名单过滤、定时无人值守运行。This skill should be used when 用户想把邮箱收到的发票自动转发给他人、设置发票自动归档/报销流程、配置发票转发规则（授权码/收件人/主题模板），或触发词包括：发票转发、发票自动转发、QQ邮箱发票、转发发票给财务、invoice forward。
+version: 1.0.2
+python_optional: ["pdfplumber", "pymupdf", "fitz"]
+metadata: {"openclaw": {"envVars": [{"name": "INVOICE_FORWARD_CONFIG", "required": false, "description": "自定义 config.json 路径（可选）"}]}}
 ---
 
 # Invoice Auto Forward — 邮箱发票自动转发
-
-- **Version**: 1.0.1
-- **License**: MIT
-- **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
-- **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/invoice-auto-forward
 
 ## 概述
 

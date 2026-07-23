@@ -334,11 +334,13 @@ def process(cfg, days, do_send):
                 continue
             sent.append(subject)
             state[key] = {"status": "sent", "subject": subject}
-            if f["invoice_no"]:
-                state.setdefault("_nos", []).append(f["invoice_no"])
             save_state(cfg["state_file"], state)  # 每发一封即落盘：中途崩溃重跑也不会重发
         else:
             sent.append(subject + "（预览未发送）")
+        if f["invoice_no"]:
+            # 同轮内按发票号去重：scan 预览与 run 真实发送必须一致，
+            # 否则预览会漏报重复（同一发票被不同邮件多次投递时）。
+            state.setdefault("_nos", []).append(f["invoice_no"])
     imap.logout()
     if smtp:
         smtp.close()
