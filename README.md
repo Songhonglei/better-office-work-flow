@@ -6,7 +6,7 @@
 
 | Skill | Description |
 |---|---|
-| [invoice-auto-forward](./skills/invoice-auto-forward/) | 邮箱发票自动转发：IMAP 扫描 + PDF 解析 + SMTP 转发，支持抬头白名单与定时无人值守 |
+| [invoice-auto-forward](./skills/invoice-auto-forward/) | 邮箱发票自动转发：IMAP 扫描 + 发票解析（PDF/OFD/XML）+ SMTP 转发，支持 QQ/163/126 多邮箱、链接型发票下载、抬头白名单与定时无人值守 |
 
 ## Quick Start
 
