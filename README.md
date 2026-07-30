@@ -1,12 +1,13 @@
 # Better Office Work Flow
 
-> AI Agent Skill Suite — 办公自动化技能套件，覆盖发票处理、邮件管理等高频办公场景。
+> AI Agent Skill Suite — 办公自动化技能套件，覆盖发票处理、Token 用量分析、邮件管理等高频办公场景。
 
 ## Skills
 
 | Skill | Description |
 |---|---|
 | [invoice-auto-forward](./skills/invoice-auto-forward/) | 邮箱发票自动转发：IMAP 扫描 + 发票解析（PDF/OFD/XML）+ SMTP 转发，支持 QQ/163/126 多邮箱、链接型发票下载、抬头白名单与定时无人值守 |
+| [wb-token-analyzer](./skills/wb-token-analyzer/) | WorkBuddy Token/Credit 使用量分析：按天/模型汇总、Top N 消耗任务排名、6 类优化建议、自定义模型支持、Neon Dashboard 可视化报告 |
 
 ## Quick Start
 
@@ -18,6 +19,7 @@ git clone https://github.com/Songhonglei/better-office-work-flow.git
 
 # 将需要的 skill 复制到你的 agent skills 目录
 cp -r skills/invoice-auto-forward ~/.workbuddy/skills/
+cp -r skills/wb-token-analyzer ~/.workbuddy/skills/
 # 或 ~/.claude/skills/ / ~/.cursor/skills/ 等
 ```
 
