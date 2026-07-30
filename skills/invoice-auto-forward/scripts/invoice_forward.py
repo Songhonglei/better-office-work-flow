@@ -44,7 +44,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-__version__ = "1.0.7"
+__version__ = "1.0.8"
 
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.workbuddy/invoice-forward/config.json")
 DEFAULTS = {
@@ -68,6 +68,7 @@ DEFAULTS = {
     "rule": {"buyer_whitelist": []},
     "forward": {
         "to": [],
+        "cc": [],
         "subject_tpl": "{item} {amount} {date}",
         "body_tpl": "发票号码：{invoice_no}\n开票日期：{date}\n购买方（抬头）：{buyer}\n"
                     "销售方：{seller}\n物品：{item}\n价税合计：{amount}",
@@ -609,6 +610,9 @@ class SmtpSession:
         m = MIMEMultipart()
         m["From"] = self.user
         m["To"] = ", ".join(self.cfg["forward"]["to"])
+        cc = self.cfg["forward"].get("cc") or []
+        if cc:
+            m["Cc"] = ", ".join(cc)
         m["Subject"] = Header(subject, "utf-8")
         m.attach(MIMEText(body, "plain", "utf-8"))
         att = MIMEApplication(data, _subtype=(fmt or "pdf"))
@@ -830,6 +834,7 @@ def cmd_check(cfg, install_deps=False):
 
     step("配置文件", lambda: "已加载")
     step("转发收件人", lambda: ", ".join(cfg["forward"]["to"]) or "未配置！请在 config.json 的 forward.to 填写")
+    step("抄送(CC)", lambda: (", ".join(cfg["forward"].get("cc") or []) or "未启用（默认关闭）"))
 
     def _deps():
         try:
@@ -1044,6 +1049,7 @@ def cmd_setup(args):
     print("  config ：%s" % cfg_path)
     print("  secrets：%s （权限 600）" % os.path.expanduser(acc["secrets_file"]))
     print("  转发收件人：%s" % (", ".join(cfg["forward"]["to"]) or "（未配置，scan 可跑，run 前需填）"))
+    print("  抄送(CC)：%s" % (", ".join(cfg["forward"].get("cc") or []) or "（未启用，默认关闭）"))
     print("  下一步：%s check" % os.path.basename(__file__))
 
 

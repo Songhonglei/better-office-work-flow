@@ -3,6 +3,14 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.0.8 (2026-07-30)
+
+- **新增：转发抄送（CC）支持，默认关闭**。`forward` 配置新增 `cc` 数组字段，填写后每封转发邮件同时抄送给这些地址；默认空数组（`"cc": []`）= 完全关闭，对既有用户零影响、零行为变化。
+  - `SmtpSession.send` 在 `cc` 非空时写入 `Cc` 头，`send_message` 自动将其纳入实际收件人。
+  - `setup` 与 `doctor(check)` 输出新增「抄送(CC)」一行，显示当前是否启用。
+  - `config.example.json` 增加 `cc` 字段与说明注释。
+- 实现遵循最小改动：防自转发循环的 `exclude`（基于 From 字段）无需调整，抄送不会引发循环。
+
 ### v1.0.7 (2026-07-23)
 
 - **新增：发票格式支持 PDF / OFD / XML 三种**。`find_invoice_attachment` 按「文件名后缀 / Content-Type / 魔数」三重判定格式（PDF=`%PDF`、OFD=ZIP 且根含 `OFD.xml`、XML=`<?xml` 开头），附件、链接下载、转发附件 MIME 全部走统一格式分发。
