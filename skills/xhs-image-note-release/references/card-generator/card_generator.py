@@ -365,14 +365,55 @@ def build_html(theme, width, height, content, options):
     if t["bg_gradient"]:
         bg_css = f"background: {t['bg_gradient']};"
 
-    # Google Fonts CDN 加载：不管本机是否安装，都从 CDN 拉取指定字体
+    # Google Fonts CDN 加载：多镜像 fallback，确保国内可用
+    # 策略：同时加载 Google 原始 CDN + 国内镜像，谁先到用谁
+    # 镜像列表按优先级排序：国内镜像优先（Chrome headless 在国内访问 Google 不稳定）
     google_fonts = t.get("google_fonts", [])
-    fonts_link = ""
+    fonts_links = []
     if google_fonts:
         families = "&".join(f"family={f.replace(' ', '+')}" for f in google_fonts)
-        fonts_link = f'''<link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?{families}&display=swap" rel="stylesheet">'''
+        # 多镜像：<link> 标签并行加载，浏览器自动用最先返回的 CSS
+        # 1. fonts.loli.net — 国内社区镜像，API 完全兼容
+        # 2. fonts.googleapis.cn — Google 官方中国镜像
+        # 3. fonts.googleapis.com — Google 原始（海外 fallback）
+        mirrors = [
+            ("fonts.loli.net", "https://fonts.loli.net"),
+            ("fonts.googleapis.cn", "https://fonts.googleapis.cn"),
+            ("fonts.googleapis.com", "https://fonts.googleapis.com"),
+        ]
+        for domain, base_url in mirrors:
+            fonts_links.append(
+                f'<link href="{base_url}/css2?{families}&display=swap" rel="stylesheet">'
+            )
+
+        # 额外保险：JS 检测字体是否加载成功，失败则动态注入镜像 CSS
+        font_names_js = json.dumps([f.split(":")[0].strip() for f in google_fonts])
+        fonts_js = f'''<script>
+(function() {{
+    var fontNames = {font_names_js};
+    var mirrors = [
+        'https://fonts.loli.net/css2?{families}&display=swap',
+        'https://fonts.googleapis.cn/css2?{families}&display=swap'
+    ];
+    // 等 3 秒后检查字体是否加载成功
+    setTimeout(function() {{
+        fontNames.forEach(function(name) {{
+            try {{
+                var loaded = document.fonts.check('16px "' + name + '"');
+                if (!loaded) {{
+                    console.log('Font not loaded: ' + name + ', injecting mirror');
+                    var link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = mirrors[0];
+                    document.head.appendChild(link);
+                }}
+            }} catch(e) {{}}
+        }});
+    }}, 3000);
+}})();
+</script>'''
+
+    fonts_link = "\n    ".join(fonts_links)
 
     html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
@@ -381,6 +422,7 @@ def build_html(theme, width, height, content, options):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>card</title>
     {fonts_link}
+    {fonts_js if google_fonts else ""}
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{

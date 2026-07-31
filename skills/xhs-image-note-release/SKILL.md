@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.2.5
+version: 1.2.6
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -17,7 +17,7 @@ metadata:
         - BODY
 ---
 
-- **Version**: 1.2.5
+- **Version**: 1.2.6
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
