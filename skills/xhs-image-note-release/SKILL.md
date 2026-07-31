@@ -1,10 +1,17 @@
 ---
 name: xhs-image-note-release
+version: 1.1.0
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
   当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖或涉及小红书内容发布时触发此技能。
   前置依赖：ego-browser (ego-lite) 已安装且正在运行，小红书账号已登录。
+metadata:
+  envVars:
+    - IMAGE_DIR
+    - IMAGES
+    - TITLE
+    - BODY
 ---
 
 - **Version**: 1.1.0
@@ -22,7 +29,7 @@ description: >
 
 | 依赖 | 类型 | 用途 | 安装方式 | 验证 |
 |------|------|------|----------|------|
-| **ego-browser** (ego-lite) | CLI 工具 + Skill | 浏览器自动化引擎，提供 CDP、snapshot、fillInput 等 API | `bash ~/.workbuddy/skills/ego-browser/scripts/install.sh` 或从 [ego-browser skill](https://github.com/Songhonglei/better-office-work-flow) 安装 | `ego-browser --version` 能正常输出版本号 |
+| **ego-browser** (ego-lite) | CLI 工具 + Skill | 浏览器自动化引擎，提供 CDP、snapshot、fillInput 等 API | 参考 [ego-browser skill](https://github.com/Songhonglei/better-office-work-flow) 安装 | `ego-browser --version` 能正常输出版本号 |
 | **小红书账号** | 平台账号 | 需在 ego-lite 浏览器中已登录小红书 | 手动在 ego-lite 中登录 creator.xiaohongshu.com | 打开创作平台能看到发布按钮 |
 | **WorkBuddy 沙箱** | 环境配置 | 沙箱模式会 SIGKILL ego-browser 进程（exit 137） | WorkBuddy 设置 → 关闭沙箱 | 运行 `ego-browser --version` 不报 sandbox 错误 |
 
@@ -195,7 +202,7 @@ bash ~/.workbuddy/skills/xhs-image-note-release/scripts/publish_note.sh
 ## Resources
 
 ### scripts/
-- `publish_note.sh` — 一键发布脚本，修改 4 个参数即可复用
+- `scripts/publish_note.sh` — 一键发布脚本，修改 4 个参数即可复用
 
 ### references/
-- `publish-method.md` — 完整方法文档，含失败方案对比表和技术原理详解。**按需加载**：当需要了解发布按钮失败方案的完整对比、或需要排查 closed Shadow DOM 穿透问题时阅读此文件；正常发布流程无需提前加载
+- `references/publish-method.md` — 完整方法文档，含失败方案对比表和技术原理详解。**按需加载**：当需要了解发布按钮失败方案的完整对比、或需要排查 closed Shadow DOM 穿透问题时阅读此文件；正常发布流程无需提前加载
