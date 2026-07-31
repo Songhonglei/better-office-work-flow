@@ -89,9 +89,14 @@ if (!loginCheck.loggedIn) {
 }
 
 // ===== 第3步：进入图文发布页 =====
-// 新版创作平台顶部有 tab 导航，默认可能是「上传视频」，需要先点「上传图文」tab
-cliLog('Switching to 上传图文 tab...')
-await js(`(() => {
+// 兼容两种 UI：① 顶部「上传图文」tab  ②「发布笔记」下拉菜单 →「上传图文」
+// 先试顶部 tab，如果页面上没有 upload input 再试下拉菜单
+cliLog('Entering 图文发布页 (trying top tab first)...')
+
+let uploadReady = false
+
+// 方法1：点击顶部「上传图文」tab
+const tabClicked = await js(`(() => {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
   let node
   while (node = walker.nextNode()) {
@@ -110,6 +115,36 @@ await js(`(() => {
   return false
 })()`)
 await wait(3)
+
+// 检查是否已进入图文编辑页（有 upload input 就说明到了）
+const checkInput = await js(`(() => {
+  return !!document.querySelector('input.upload-input')
+})()`)
+uploadReady = checkInput
+
+// 方法2：如果方法1没进入，尝试「发布笔记」下拉菜单
+if (!uploadReady) {
+  cliLog('Top tab not found or no upload input, trying 发布笔记 dropdown...')
+  const pageText = await snapshotText()
+  const matchPublish = pageText.match(/发布笔记.*?\[ref=(\d+)/)
+  if (matchPublish) {
+    await click('@' + matchPublish[1], { label: 'click 发布笔记 dropdown' })
+    await wait(2)
+    const text2 = await snapshotText()
+    const matchUpload = text2.match(/上传图文.*?\[ref=(\d+)/)
+    if (matchUpload) {
+      await click('@' + matchUpload[1], { label: 'click 上传图文' })
+      await waitForNetworkIdle(5)
+      await wait(3)
+    }
+  }
+}
+
+if (uploadReady || await js(`!!document.querySelector('input.upload-input')`)) {
+  cliLog('Successfully entered 图文发布页')
+} else {
+  cliLog('WARNING: Could not confirm upload page, continuing anyway...')
+}
 
 // ===== 第4步：上传图片（CDP 批量设置 file input）=====
 cliLog('Uploading ' + filePaths.length + ' files...')

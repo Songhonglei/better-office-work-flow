@@ -3,6 +3,11 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.2.2 (2026-07-31)
+
+- **Fix**: Support both UI entry points for entering image note page — try top "上传图文" tab first, fall back to "发布笔记" dropdown menu. Uses `input.upload-input` presence as the success check.
+- **Fix**: Correct v1.2.0 changelog — both top tab and dropdown menu are valid, not a UI deprecation
+
 ### v1.2.1 (2026-07-31)
 
 - **Fix**: Frontmatter dependency declaration for skill-release-audit
@@ -11,7 +16,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 
 ### v1.2.0 (2026-07-31)
 
-- **Fix**: Adapt to new Xiaohongshu creator platform UI — click "上传图文" tab at top instead of old "发布笔记" dropdown menu
+- **Fix**: Add support for top "上传图文" tab as an alternative entry point (both tab and dropdown menu work)
 - **Fix**: Update publish success verification to also recognize `published=true` URL parameter
 - **Fix**: Increase post-upload wait from 8s to 10s for more reliable image processing
 

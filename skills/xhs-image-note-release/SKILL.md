@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.2.1
+version: 1.2.2
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -17,7 +17,7 @@ metadata:
         - BODY
 ---
 
-- **Version**: 1.2.1
+- **Version**: 1.2.2
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
@@ -48,7 +48,7 @@ metadata:
 ## 核心流程（9 步）
 
 ```
-创建 task space → 打开创作平台 → 等待 SPA 渲染(15s) → 点击「上传图文」tab
+创建 task space → 打开创作平台 → 等待 SPA 渲染(15s) → 进入图文发布页(自动兼容 tab/下拉)
 → 上传图片(CDP 批量) → 填标题 → 填正文 → 关闭话题弹窗
 → 调用 _onPublish() 发布 → 等待跳转确认 → 清理 task space
 ```
@@ -68,10 +68,16 @@ EOF
 
 ### 2. 进入图文发布页
 
-新版创作平台顶部有 tab 导航，默认可能是「上传视频」。需要先点击「上传图文」tab：
+创作平台支持两种入口进入图文编辑页，脚本会**自动兼容**两种 UI：
+
+- **方式 A（顶部 tab）**：页面顶部有「上传视频 / 上传图文 / 写长文」tab 导航，点击「上传图文」
+- **方式 B（下拉菜单）**：页面有「发布笔记」下拉按钮，点击展开后选「上传图文」
+
+脚本逻辑：先试方式 A（按文本遍历点击），检查是否出现 `input.upload-input`；如果没有，回退到方式 B（snapshotText 匹配 ref 点击）。
 
 ```js
-const clickResult = await js(`(() => {
+// 方式 A：点击顶部「上传图文」tab
+const tabClicked = await js(`(() => {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
   let node
   while (node = walker.nextNode()) {
@@ -80,19 +86,36 @@ const clickResult = await js(`(() => {
       for (let i = 0; i < 4; i++) {
         if (!element) break
         element.click()
-        const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
-        element.dispatchEvent(event)
+        element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
         element = element.parentElement
       }
-      return { clicked: true }
+      return true
     }
   }
-  return { clicked: false }
+  return false
 })()`)
 await wait(3)
+
+// 检查是否已进入图文编辑页
+if (!await js(`!!document.querySelector('input.upload-input')`)) {
+  // 方式 B：回退到「发布笔记」下拉菜单
+  const pageText = await snapshotText()
+  const matchPublish = pageText.match(/发布笔记.*?\[ref=(\d+)/)
+  if (matchPublish) {
+    await click('@' + matchPublish[1])
+    await wait(2)
+    const text2 = await snapshotText()
+    const matchUpload = text2.match(/上传图文.*?\[ref=(\d+)/)
+    if (matchUpload) {
+      await click('@' + matchUpload[1])
+      await waitForNetworkIdle(5)
+      await wait(3)
+    }
+  }
+}
 ```
 
-> **注意**：旧版 UI 使用「发布笔记」下拉菜单，但 2026 年 7 月起新版创作平台改为顶部 tab，因此改为按文本点击「上传图文」tab。
+> **注意**：两种 UI 可能同时存在或随版本切换，脚本以 `input.upload-input` 是否出现为判断标准，自动选择可用入口。
 
 ### 3. 上传图片（CDP 批量）
 
