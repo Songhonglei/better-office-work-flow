@@ -3,6 +3,12 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.3.2 (2026-07-31)
+
+- **Fix**: `doodle` theme font now uses **ZCOOL KuaiLe** (站酷快乐体) from Google Fonts — a playful, rounded Chinese display font that matches the hand-drawn doodle decorations. Previously Caveat/Permanent Marker are Latin-only and silently fell back to system Songti/PingFang, which broke the playful style.
+- **Fix**: `steampunk` theme font now uses **Rye** (Western vintage slab) + **Noto Serif SC** from Google Fonts. Previously PingFang SC/Georgia looked too clean and modern for the dark brass/gear aesthetic; the new combination gives a vintage print feel consistent with steampunk.
+- **Docs**: README theme preview images regenerated for doodle and steampunk to reflect the new typography.
+
 ### v1.3.1 (2026-07-31)
 
 - **Fix**: XiaoHongShu style now has **two distinct modes** as originally documented in `text-to-elegant-image` repo: `xhs` = clean/formal mode, `xhs_rich` = lively/rich mode. Previously only the clean variant was implemented.
