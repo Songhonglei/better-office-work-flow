@@ -3,6 +3,14 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.3.0 (2026-07-31)
+
+- **Breaking**: Port ALL 18 styles from `text-to-elegant-image` repo into the unified card generator. Total themes: **23** (18 repo + 4 young-people + 1 warm original).
+- **Themes added**: cyberpunk, elegant, apple, cowork, newspaper, bloomberg, ink, steampunk, xhs, morandi (upgraded), glass, palace (upgraded), fresh, earthy, dreamy, macaron, carbon, vivid.
+- **Each theme** extracts original repo's color palette, font stack, Google Fonts declaration, and decorative elements — all adapted to the unified layout (tag + centered text + footer).
+- **Decorations**: 15 unique decoration styles (grid lines, scan lines, ink splashes, gears, glass blobs, leaves, sparkles, dots, etc.) — each theme has its own visual signature.
+- **Google Fonts**: Themes requiring special fonts (palace: Ma Shan Zheng + ZCOOL XiaoWei; morandi/glass/fresh/earthy/dreamy/macaron/carbon/vivid: Inter; doodle: Caveat + Permanent Marker) all load via multi-mirror CDN fallback.
+
 ### v1.2.7 (2026-07-31)
 
 - **Fix**: Remove the horizontal line above subtitle text in all themes. Subtitle now displays as `— 副标题 —` without the extra separator line above it, matching the user's reference screenshot style more closely.

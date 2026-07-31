@@ -13,6 +13,7 @@
 import os
 import sys
 import json
+import math
 import subprocess
 import tempfile
 import argparse
@@ -30,7 +31,9 @@ CHROME_CANDIDATES = [
 
 # ─── 主题配置 ──────────────────────────────────────────────────────
 # 每个主题：背景、文字、点缀、装饰元素、字体
+# 来源：text-to-elegant-image 仓库 18 种 + 4 种年轻人风格 + warm 原创 = 23 种
 THEMES = {
+    # ── 原创风格 ──────────────────────────────────────────────
     "warm": {
         "name": "温暖哲思",
         "bg": "#F7F3ED",
@@ -42,25 +45,11 @@ THEMES = {
         "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
         "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
         "quote_color": "#C4A882",
-        "deco": "none",
+        "deco": "warm",
         "letter_spacing": 4,
         "google_fonts": [],
     },
-    "minimal": {
-        "name": "极简日系",
-        "bg": "#FAFAFA",
-        "bg_gradient": None,
-        "text": "#1A1A1A",
-        "muted": "#888888",
-        "accent": "#1A1A1A",
-        "accent2": "#E0E0E0",
-        "font_main": "'Songti SC', 'STSong', 'Noto Serif SC', serif",
-        "font_tag": "'PingFang SC', sans-serif",
-        "quote_color": "#CCCCCC",
-        "deco": "none",
-        "letter_spacing": 5,
-        "google_fonts": [],
-    },
+    # ── 年轻人风格（新增，非仓库原始） ────────────────────────
     "y2k": {
         "name": "Y2K 千禧潮酷",
         "bg": "#0B0B15",
@@ -106,33 +95,307 @@ THEMES = {
         "letter_spacing": 3,
         "google_fonts": [],
     },
+    "minimal": {
+        "name": "极简日系",
+        "bg": "#FAFAFA",
+        "bg_gradient": None,
+        "text": "#1A1A1A",
+        "muted": "#888888",
+        "accent": "#1A1A1A",
+        "accent2": "#E0E0E0",
+        "font_main": "'Songti SC', 'STSong', 'Noto Serif SC', serif",
+        "font_tag": "'PingFang SC', sans-serif",
+        "quote_color": "#CCCCCC",
+        "deco": "none",
+        "letter_spacing": 5,
+        "google_fonts": [],
+    },
+    # ── text-to-elegant-image 仓库 18 种风格 ──────────────────
+    # 01 赛博科技
+    "cyberpunk": {
+        "name": "赛博科技",
+        "bg": "#050812",
+        "bg_gradient": "linear-gradient(180deg, #050812 0%, #0C1220 100%)",
+        "text": "#F0F4F8",
+        "muted": "#7A8FA6",
+        "accent": "#00F0FF",
+        "accent2": "#B900FF",
+        "font_main": "'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif",
+        "font_tag": "'PingFang SC', 'Helvetica Neue', sans-serif",
+        "quote_color": "#00F0FF",
+        "deco": "cyberpunk",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 02 极简优雅
+    "elegant": {
+        "name": "极简优雅",
+        "bg": "#FDFDFD",
+        "bg_gradient": None,
+        "text": "#2C2C2C",
+        "muted": "#8E8E8E",
+        "accent": "#D32F2F",
+        "accent2": "#EAEAEA",
+        "font_main": "'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif CN', Georgia, serif",
+        "font_tag": "'Songti SC', 'Noto Serif CJK SC', serif",
+        "quote_color": "#D32F2F",
+        "deco": "none",
+        "letter_spacing": 4,
+        "google_fonts": [],
+    },
+    # 03 Apple 质感
+    "apple": {
+        "name": "Apple 质感",
+        "bg": "#F5F5F7",
+        "bg_gradient": None,
+        "text": "#1D1D1F",
+        "muted": "#6E6E73",
+        "accent": "#0066CC",
+        "accent2": "#E8E8ED",
+        "font_main": "-apple-system, 'BlinkMacSystemFont', 'PingFang SC', 'Segoe UI', Helvetica, Arial, sans-serif",
+        "font_tag": "-apple-system, 'PingFang SC', sans-serif",
+        "quote_color": "#0066CC",
+        "deco": "none",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 04 轻科技
+    "cowork": {
+        "name": "轻科技",
+        "bg": "#F5F5F7",
+        "bg_gradient": None,
+        "text": "#1D1D1F",
+        "muted": "#6E6E73",
+        "accent": "#0066CC",
+        "accent2": "#0077ED",
+        "font_main": "-apple-system, 'SF Pro Display', 'SF Pro Text', 'PingFang SC', sans-serif",
+        "font_tag": "-apple-system, 'SF Pro Text', 'PingFang SC', sans-serif",
+        "quote_color": "#0066CC",
+        "deco": "none",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 05 报纸杂志
+    "newspaper": {
+        "name": "报纸杂志",
+        "bg": "#F0EDE4",
+        "bg_gradient": None,
+        "text": "#1A1A1A",
+        "muted": "#555550",
+        "accent": "#8B1A1A",
+        "accent2": "#C8C4BA",
+        "font_main": "'Georgia', 'Songti SC', 'Noto Serif CJK SC', serif",
+        "font_tag": "'Georgia', 'Songti SC', serif",
+        "quote_color": "#8B1A1A",
+        "deco": "newspaper",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 06 Bloomberg 终端
+    "bloomberg": {
+        "name": "Bloomberg 终端",
+        "bg": "#0A0A0A",
+        "bg_gradient": None,
+        "text": "#E8E8E8",
+        "muted": "#777777",
+        "accent": "#FF6B00",
+        "accent2": "#00CC44",
+        "font_main": "'Courier New', 'Courier', 'Lucida Console', monospace",
+        "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "quote_color": "#FF6B00",
+        "deco": "bloomberg",
+        "letter_spacing": 2,
+        "google_fonts": [],
+    },
+    # 07 水墨卷轴
+    "ink": {
+        "name": "水墨卷轴",
+        "bg": "#F5F0E8",
+        "bg_gradient": None,
+        "text": "#2A2018",
+        "muted": "#7A6A50",
+        "accent": "#8B1A1A",
+        "accent2": "#1A1008",
+        "font_main": "'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif CN', 'STSong', Georgia, serif",
+        "font_tag": "'Songti SC', 'STSong', serif",
+        "quote_color": "#8B1A1A",
+        "deco": "ink",
+        "letter_spacing": 5,
+        "google_fonts": [],
+    },
+    # 08 蒸汽朋克
+    "steampunk": {
+        "name": "蒸汽朋克",
+        "bg": "#1A1008",
+        "bg_gradient": "linear-gradient(135deg, #1E1408 0%, #150F06 50%, #1E1408 100%)",
+        "text": "#E8D4A0",
+        "muted": "#A08040",
+        "accent": "#C8A830",
+        "accent2": "#B87333",
+        "font_main": "'PingFang SC', 'Georgia', serif",
+        "font_tag": "'PingFang SC', 'Georgia', serif",
+        "quote_color": "#C8A830",
+        "deco": "steampunk",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 09 小红书
+    "xhs": {
+        "name": "小红书",
+        "bg": "#FFF5F7",
+        "bg_gradient": None,
+        "text": "#1A1A1A",
+        "muted": "#999999",
+        "accent": "#FF2442",
+        "accent2": "#FF6B8A",
+        "font_main": "-apple-system, 'BlinkMacSystemFont', 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif",
+        "font_tag": "-apple-system, 'PingFang SC', sans-serif",
+        "quote_color": "#FF2442",
+        "deco": "xhs",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 10 莫兰迪灰
+    "morandi": {
+        "name": "莫兰迪灰",
+        "bg": "#E8E4DD",
+        "bg_gradient": None,
+        "text": "#4A453E",
+        "muted": "#94897C",
+        "accent": "#7C8B7E",
+        "accent2": "#9A8C82",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#7C8B7E",
+        "deco": "none",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 11 玻璃拟态
+    "glass": {
+        "name": "玻璃拟态",
+        "bg": "#EDEBFF",
+        "bg_gradient": "linear-gradient(135deg, #E6E9FF 0%, #F3E9FF 35%, #E9F7FF 70%, #FFF0F7 100%)",
+        "text": "#1F2433",
+        "muted": "#5B6072",
+        "accent": "#6D5EF7",
+        "accent2": "#4EC8E8",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#6D5EF7",
+        "deco": "glass",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 12 故宫
     "palace": {
         "name": "故宫金红",
-        "bg": "#1A0A05",
-        "bg_gradient": "linear-gradient(180deg, #1A0A05 0%, #2D1108 50%, #1A0A05 100%)",
-        "text": "#D4A843",
-        "muted": "#8B6914",
-        "accent": "#C9A961",
-        "accent2": "#8B0000",
-        "font_main": "'Ma Shan Zheng', 'ZCOOL XiaoWei', 'Songti SC', serif",
+        "bg": "#0E0604",
+        "bg_gradient": "linear-gradient(180deg, #0E0604 0%, #160A06 50%, #0E0604 100%)",
+        "text": "#F0E6C8",
+        "muted": "#9A8060",
+        "accent": "#C8A45A",
+        "accent2": "#C0392B",
+        "font_main": "'Ma Shan Zheng', 'ZCOOL XiaoWei', 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif",
         "font_tag": "'ZCOOL XiaoWei', 'Songti SC', serif",
-        "quote_color": "#C9A961",
+        "quote_color": "#C8A45A",
         "deco": "palace",
         "letter_spacing": 6,
         "google_fonts": ["Ma Shan Zheng", "ZCOOL XiaoWei"],
     },
-    "morandi": {
-        "name": "莫兰迪灰",
-        "bg": "#E8E4E0",
+    # 13 清新绿
+    "fresh": {
+        "name": "清新绿",
+        "bg": "#F1F7F0",
         "bg_gradient": None,
-        "text": "#5D5754",
-        "muted": "#9E9690",
-        "accent": "#A89B94",
-        "accent2": "#C4BBB5",
+        "text": "#1F3A29",
+        "muted": "#6B8475",
+        "accent": "#2E9E5B",
+        "accent2": "#6FB98F",
         "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
         "font_tag": "'Inter', 'PingFang SC', sans-serif",
-        "quote_color": "#A89B94",
+        "quote_color": "#2E9E5B",
+        "deco": "fresh",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 14 大地原木
+    "earthy": {
+        "name": "大地原木",
+        "bg": "#F3ECE1",
+        "bg_gradient": None,
+        "text": "#3D2E22",
+        "muted": "#8A7460",
+        "accent": "#B5683C",
+        "accent2": "#8A8B5C",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#B5683C",
         "deco": "none",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 15 紫梦幻
+    "dreamy": {
+        "name": "紫梦幻",
+        "bg": "#F6F2FB",
+        "bg_gradient": None,
+        "text": "#2E2541",
+        "muted": "#7C7295",
+        "accent": "#8B5CF6",
+        "accent2": "#C084FC",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#8B5CF6",
+        "deco": "dreamy",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 16 马卡龙
+    "macaron": {
+        "name": "马卡龙",
+        "bg": "#FDF2F4",
+        "bg_gradient": None,
+        "text": "#4A2F38",
+        "muted": "#9C7B85",
+        "accent": "#EB6F8E",
+        "accent2": "#F5A9C0",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#EB6F8E",
+        "deco": "macaron",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 17 暗色极简
+    "carbon": {
+        "name": "暗色极简",
+        "bg": "#14161A",
+        "bg_gradient": None,
+        "text": "#D6DAE0",
+        "muted": "#8A929E",
+        "accent": "#4FB8C4",
+        "accent2": "#6CCFA8",
+        "font_main": "'Inter', 'SF Mono', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'SF Mono', 'PingFang SC', sans-serif",
+        "quote_color": "#4FB8C4",
+        "deco": "carbon",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
+    },
+    # 18 活力渐变
+    "vivid": {
+        "name": "活力渐变",
+        "bg": "#FBF9FF",
+        "bg_gradient": None,
+        "text": "#1E1B2E",
+        "muted": "#6B6480",
+        "accent": "#7C3AED",
+        "accent2": "#EC4899",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#7C3AED",
+        "deco": "vivid",
         "letter_spacing": 3,
         "google_fonts": ["Inter:wght@300;400;500;600"],
     },
@@ -309,20 +572,20 @@ def build_svg(theme, width, height, content, options):
 def build_decorations(theme, width, height, t):
     """根据主题添加装饰元素"""
     decos = []
-    if theme == "y2k":
-        # 星星和十字装饰
+    deco = t.get("deco", "none")
+
+    if deco == "stars" or theme == "y2k":
+        # Y2K 星星和十字装饰
         decos.append(f'<polygon points="{width-120},80 {width-115},95 {width-100},100 {width-115},105 {width-120},120 {width-125},105 {width-140},100 {width-125},95" fill="{t['accent2']}" opacity="0.8"/>')
         decos.append(f'<polygon points="120,180 125,195 140,200 125,205 120,220 115,205 100,200 115,195" fill="{t['accent']}" opacity="0.7"/>')
         decos.append(f'<text x="{width-90}" y="{height-160}" font-size="48" fill="{t['accent']}" opacity="0.5">✦</text>')
         decos.append(f'<text x="90" y="{height-140}" font-size="36" fill="{t['accent2']}" opacity="0.5">✦</text>')
-    elif theme == "doodle":
-        # 手绘风星星和线条
+    elif deco == "doodles" or theme == "doodle":
         decos.append(f'<path d="M {width-140},70 Q {width-120},90 {width-140},110 Q {width-160},90 {width-140},70" fill="none" stroke="{t['accent']}" stroke-width="3" stroke-linecap="round"/>')
         decos.append(f'<path d="M 110,120 L 130,140 M 130,120 L 110,140" stroke="{t['accent2']}" stroke-width="4" stroke-linecap="round"/>')
         decos.append(f'<circle cx="{width-100}" cy="{height-140}" r="8" fill="none" stroke="{t['accent']}" stroke-width="3"/>')
         decos.append(f'<path d="M 90,{height-130} Q 110,{height-150} 130,{height-130}" fill="none" stroke="{t['accent2']}" stroke-width="3" stroke-linecap="round"/>')
-    elif theme == "pop":
-        # 波普圆点
+    elif deco == "dots" or theme == "pop":
         for cx, cy, r, color in [
             (width - 100, 100, 18, t["accent"]),
             (width - 70, 140, 10, t["accent2"]),
@@ -331,23 +594,97 @@ def build_decorations(theme, width, height, t):
             (width - 130, height - 100, 12, t["accent"]),
         ]:
             decos.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}" opacity="0.85"/>')
-    elif theme == "warm":
-        # 淡淡的角落装饰
+    elif deco == "warm" or theme == "warm":
         decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t['accent']}" opacity="0.5"/>')
         decos.append(f'<circle cx="{width-110}" cy="110" r="2" fill="{t['accent']}" opacity="0.4"/>')
         decos.append(f'<circle cx="90" cy="{height-100}" r="3" fill="{t['accent']}" opacity="0.5"/>')
-    elif theme == "palace":
-        # 金色印章 + 角花装饰
+    elif deco == "palace" or theme == "palace":
         seal_x, seal_y, seal_r = width - 100, 100, 28
         decos.append(f'<rect x="{seal_x - seal_r}" y="{seal_y - seal_r}" width="{seal_r * 2}" height="{seal_r * 2}" fill="{t['accent2']}" opacity="0.85" rx="3"/>')
         decos.append(f'<text x="{seal_x}" y="{seal_y + 8}" text-anchor="middle" font-size="22" fill="{t['accent']}" font-family="{t['font_main']}">印</text>')
-        # 顶部角花
         decos.append(f'<path d="M 40,40 L 80,40 M 40,40 L 40,80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
         decos.append(f'<path d="M {width-40},40 L {width-80},40 M {width-40},40 L {width-40},80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
-        # 底部角花
         decos.append(f'<path d="M 40,{height-40} L 80,{height-40} M 40,{height-40} L 40,{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
         decos.append(f'<path d="M {width-40},{height-40} L {width-80},{height-40} M {width-40},{height-40} L {width-40},{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
-    # minimal / morandi 无装饰
+    elif deco == "cyberpunk" or theme == "cyberpunk":
+        # 网格线 + 发光点
+        for i in range(0, width, 60):
+            decos.append(f'<line x1="{i}" y1="0" x2="{i}" y2="{height}" stroke="{t["accent"]}" stroke-width="0.5" opacity="0.06"/>')
+        for j in range(0, height, 60):
+            decos.append(f'<line x1="0" y1="{j}" x2="{width}" y2="{j}" stroke="{t["accent"]}" stroke-width="0.5" opacity="0.06"/>')
+        decos.append(f'<circle cx="{width-80}" cy="80" r="4" fill="{t["accent"]}" opacity="0.8"/>')
+        decos.append(f'<circle cx="{width-100}" cy="100" r="2" fill="{t["accent2"]}" opacity="0.6"/>')
+        decos.append(f'<circle cx="80" cy="{height-80}" r="3" fill="{t["accent"]}" opacity="0.7"/>')
+    elif deco == "newspaper" or theme == "newspaper":
+        # 双线边框
+        decos.append(f'<rect x="30" y="30" width="{width-60}" height="{height-60}" fill="none" stroke="{t["accent2"]}" stroke-width="1"/>')
+        decos.append(f'<rect x="36" y="36" width="{width-72}" height="{height-72}" fill="none" stroke="{t["accent2"]}" stroke-width="0.5"/>')
+    elif deco == "bloomberg" or theme == "bloomberg":
+        # 扫描线
+        for j in range(0, height, 4):
+            decos.append(f'<line x1="0" y1="{j}" x2="{width}" y2="{j}" stroke="{t["accent"]}" stroke-width="0.3" opacity="0.04"/>')
+        decos.append(f'<rect x="0" y="0" width="4" height="{height}" fill="{t["accent"]}" opacity="0.6"/>')
+    elif deco == "ink" or theme == "ink":
+        # 水墨晕圈
+        decos.append(f'<ellipse cx="{width-100}" cy="100" rx="60" ry="40" fill="{t["accent2"]}" opacity="0.04"/>')
+        decos.append(f'<ellipse cx="100" cy="{height-100}" rx="50" ry="35" fill="{t["accent"]}" opacity="0.05"/>')
+        # 印章
+        decos.append(f'<rect x="{width-80}" y="{height-80}" width="40" height="40" fill="{t["accent"]}" opacity="0.8" rx="2"/>')
+        decos.append(f'<text x="{width-60}" y="{height-55}" text-anchor="middle" font-size="18" fill="{t["bg"]}" font-family="{t["font_main"]}">墨</text>')
+    elif deco == "steampunk" or theme == "steampunk":
+        # 齿轮装饰
+        cx, cy, r = width - 90, 90, 25
+        gear = f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{t["accent"]}" stroke-width="2" opacity="0.5"/>'
+        for a in range(0, 360, 45):
+            rad = math.radians(a)
+            x1 = cx + math.cos(rad) * r
+            y1 = cy + math.sin(rad) * r
+            x2 = cx + math.cos(rad) * (r + 8)
+            y2 = cy + math.sin(rad) * (r + 8)
+            gear += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{t["accent"]}" stroke-width="3" opacity="0.5"/>'
+        decos.append(gear)
+        decos.append(f'<circle cx="{cx}" cy="{cy}" r="8" fill="{t["accent2"]}" opacity="0.4"/>')
+        # 铜管装饰
+        decos.append(f'<rect x="60" y="{height-60}" width="80" height="6" fill="{t["accent2"]}" opacity="0.3" rx="3"/>')
+    elif deco == "xhs" or theme == "xhs":
+        # 小红书风格小圆点
+        decos.append(f'<circle cx="{width-70}" cy="70" r="6" fill="{t["accent"]}" opacity="0.15"/>')
+        decos.append(f'<circle cx="{width-90}" cy="90" r="4" fill="{t["accent2"]}" opacity="0.2"/>')
+        decos.append(f'<circle cx="70" cy="{height-70}" r="5" fill="{t["accent"]}" opacity="0.15"/>')
+    elif deco == "glass" or theme == "glass":
+        # 模糊光斑
+        decos.append(f'<circle cx="{width-120}" cy="120" r="40" fill="{t["accent"]}" opacity="0.08"/>')
+        decos.append(f'<circle cx="120" cy="{height-120}" r="50" fill="{t["accent2"]}" opacity="0.08"/>')
+        decos.append(f'<circle cx="{width-80}" cy="{height-200}" r="30" fill="{t["accent"]}" opacity="0.06"/>')
+    elif deco == "fresh" or theme == "fresh":
+        # 叶子装饰
+        decos.append(f'<ellipse cx="{width-80}" cy="80" rx="12" ry="6" fill="{t["accent"]}" opacity="0.2" transform="rotate(-30 {width-80} 80)"/>')
+        decos.append(f'<ellipse cx="80" cy="{height-80}" rx="10" ry="5" fill="{t["accent2"]}" opacity="0.25" transform="rotate(30 80 {height-80})"/>')
+    elif deco == "dreamy" or theme == "dreamy":
+        # 闪烁星点
+        decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t["accent"]}" opacity="0.4"/>')
+        decos.append(f'<circle cx="{width-110}" cy="70" r="2" fill="{t["accent2"]}" opacity="0.5"/>')
+        decos.append(f'<circle cx="90" cy="{height-90}" r="2" fill="{t["accent"]}" opacity="0.4"/>')
+        decos.append(f'<circle cx="70" cy="{height-110}" r="3" fill="{t["accent2"]}" opacity="0.3"/>')
+    elif deco == "macaron" or theme == "macaron":
+        # 甜美小圆点
+        for cx, cy, r in [
+            (width - 80, 80, 10), (width - 100, 100, 6),
+            (80, height - 80, 8), (100, height - 100, 5),
+        ]:
+            decos.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{t["accent2"]}" opacity="0.3"/>')
+    elif deco == "carbon" or theme == "carbon":
+        # 代码风格小方块
+        decos.append(f'<rect x="{width-90}" y="70" width="6" height="6" fill="{t["accent"]}" opacity="0.4"/>')
+        decos.append(f'<rect x="{width-78}" y="70" width="6" height="6" fill="{t["accent2"]}" opacity="0.3"/>')
+        decos.append(f'<rect x="{width-66}" y="70" width="6" height="6" fill="{t["accent"]}" opacity="0.2"/>')
+        decos.append(f'<rect x="70" y="{height-80}" width="6" height="6" fill="{t["accent2"]}" opacity="0.3"/>')
+    elif deco == "vivid" or theme == "vivid":
+        # 渐变光斑
+        decos.append(f'<circle cx="{width-100}" cy="100" r="25" fill="{t["accent"]}" opacity="0.1"/>')
+        decos.append(f'<circle cx="100" cy="{height-100}" r="20" fill="{t["accent2"]}" opacity="0.1"/>')
+        decos.append(f'<circle cx="{width-60}" cy="{height-180}" r="15" fill="{t["accent2"]}" opacity="0.08"/>')
+    # none / morandi / apple / cowork / earthy / elegant 无装饰
     return decos
 
 
