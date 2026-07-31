@@ -44,6 +44,7 @@ THEMES = {
         "quote_color": "#C4A882",
         "deco": "none",
         "letter_spacing": 4,
+        "google_fonts": [],
     },
     "minimal": {
         "name": "极简日系",
@@ -58,6 +59,7 @@ THEMES = {
         "quote_color": "#CCCCCC",
         "deco": "none",
         "letter_spacing": 5,
+        "google_fonts": [],
     },
     "y2k": {
         "name": "Y2K 千禧潮酷",
@@ -72,6 +74,7 @@ THEMES = {
         "quote_color": "#00FFFF",
         "deco": "stars",
         "letter_spacing": 3,
+        "google_fonts": [],
     },
     "doodle": {
         "name": "手绘涂鸦",
@@ -81,11 +84,12 @@ THEMES = {
         "muted": "#6B6B6B",
         "accent": "#FF6B35",
         "accent2": "#FFD23F",
-        "font_main": "'Chalkduster', 'Bradley Hand', 'Marker Felt', 'Kaiti SC', 'STKaiti', 'PingFang SC', cursive",
-        "font_tag": "'Chalkduster', 'Bradley Hand', 'Marker Felt', 'PingFang SC', cursive",
+        "font_main": "'Caveat', 'Permanent Marker', 'Chalkduster', 'Bradley Hand', 'Marker Felt', 'Kaiti SC', cursive",
+        "font_tag": "'Caveat', 'Chalkduster', 'Bradley Hand', 'Marker Felt', 'PingFang SC', cursive",
         "quote_color": "#FF6B35",
         "deco": "doodles",
         "letter_spacing": 2,
+        "google_fonts": ["Caveat:wght@400;700", "Permanent Marker"],
     },
     "pop": {
         "name": "渐变波普",
@@ -100,6 +104,37 @@ THEMES = {
         "quote_color": "#FF3366",
         "deco": "dots",
         "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    "palace": {
+        "name": "故宫金红",
+        "bg": "#1A0A05",
+        "bg_gradient": "linear-gradient(180deg, #1A0A05 0%, #2D1108 50%, #1A0A05 100%)",
+        "text": "#D4A843",
+        "muted": "#8B6914",
+        "accent": "#C9A961",
+        "accent2": "#8B0000",
+        "font_main": "'Ma Shan Zheng', 'ZCOOL XiaoWei', 'Songti SC', serif",
+        "font_tag": "'ZCOOL XiaoWei', 'Songti SC', serif",
+        "quote_color": "#C9A961",
+        "deco": "palace",
+        "letter_spacing": 6,
+        "google_fonts": ["Ma Shan Zheng", "ZCOOL XiaoWei"],
+    },
+    "morandi": {
+        "name": "莫兰迪灰",
+        "bg": "#E8E4E0",
+        "bg_gradient": None,
+        "text": "#5D5754",
+        "muted": "#9E9690",
+        "accent": "#A89B94",
+        "accent2": "#C4BBB5",
+        "font_main": "'Inter', 'PingFang SC', 'Helvetica Neue', sans-serif",
+        "font_tag": "'Inter', 'PingFang SC', sans-serif",
+        "quote_color": "#A89B94",
+        "deco": "none",
+        "letter_spacing": 3,
+        "google_fonts": ["Inter:wght@300;400;500;600"],
     },
 }
 
@@ -305,7 +340,18 @@ def build_decorations(theme, width, height, t):
         decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t['accent']}" opacity="0.5"/>')
         decos.append(f'<circle cx="{width-110}" cy="110" r="2" fill="{t['accent']}" opacity="0.4"/>')
         decos.append(f'<circle cx="90" cy="{height-100}" r="3" fill="{t['accent']}" opacity="0.5"/>')
-    # minimal 无装饰
+    elif theme == "palace":
+        # 金色印章 + 角花装饰
+        seal_x, seal_y, seal_r = width - 100, 100, 28
+        decos.append(f'<rect x="{seal_x - seal_r}" y="{seal_y - seal_r}" width="{seal_r * 2}" height="{seal_r * 2}" fill="{t['accent2']}" opacity="0.85" rx="3"/>')
+        decos.append(f'<text x="{seal_x}" y="{seal_y + 8}" text-anchor="middle" font-size="22" fill="{t['accent']}" font-family="{t['font_main']}">印</text>')
+        # 顶部角花
+        decos.append(f'<path d="M 40,40 L 80,40 M 40,40 L 40,80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<path d="M {width-40},40 L {width-80},40 M {width-40},40 L {width-40},80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
+        # 底部角花
+        decos.append(f'<path d="M 40,{height-40} L 80,{height-40} M 40,{height-40} L 40,{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<path d="M {width-40},{height-40} L {width-80},{height-40} M {width-40},{height-40} L {width-40},{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
+    # minimal / morandi 无装饰
     return decos
 
 
@@ -319,12 +365,22 @@ def build_html(theme, width, height, content, options):
     if t["bg_gradient"]:
         bg_css = f"background: {t['bg_gradient']};"
 
+    # Google Fonts CDN 加载：不管本机是否安装，都从 CDN 拉取指定字体
+    google_fonts = t.get("google_fonts", [])
+    fonts_link = ""
+    if google_fonts:
+        families = "&".join(f"family={f.replace(' ', '+')}" for f in google_fonts)
+        fonts_link = f'''<link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?{families}&display=swap" rel="stylesheet">'''
+
     html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>card</title>
+    {fonts_link}
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{
@@ -378,6 +434,7 @@ def render_png(html_content, output_path, width=1080, height=1440):
         "--no-sandbox",
         "--hide-scrollbars",
         "--force-device-scale-factor=1",
+        "--virtual-time-budget=10000",
         f"--window-size={width},{height}",
         "--screenshot=" + os.path.abspath(output_path),
         "file://" + tmp_html.name,
