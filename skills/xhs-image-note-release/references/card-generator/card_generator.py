@@ -31,7 +31,7 @@ CHROME_CANDIDATES = [
 
 # ─── 主题配置 ──────────────────────────────────────────────────────
 # 每个主题：背景、文字、点缀、装饰元素、字体
-# 来源：text-to-elegant-image 仓库 18 种 + 4 种年轻人风格 + warm 原创 = 23 种
+# 来源：text-to-elegant-image 仓库 18 种（其中小红书拆 A/B 两模式）+ 4 种年轻人风格 + warm 原创 = 24 种
 THEMES = {
     # ── 原创风格 ──────────────────────────────────────────────
     "warm": {
@@ -239,10 +239,10 @@ THEMES = {
         "letter_spacing": 3,
         "google_fonts": [],
     },
-    # 09 小红书
+    # 09-A 小红书 · 简洁正式
     "xhs": {
-        "name": "小红书",
-        "bg": "#FFF5F7",
+        "name": "小红书·简洁",
+        "bg": "#FFFFFF",
         "bg_gradient": None,
         "text": "#1A1A1A",
         "muted": "#999999",
@@ -252,6 +252,22 @@ THEMES = {
         "font_tag": "-apple-system, 'PingFang SC', sans-serif",
         "quote_color": "#FF2442",
         "deco": "xhs",
+        "letter_spacing": 3,
+        "google_fonts": [],
+    },
+    # 09-B 小红书 · 丰富活泼
+    "xhs_rich": {
+        "name": "小红书·丰富",
+        "bg": "#FFF5F7",
+        "bg_gradient": "linear-gradient(160deg, #FFF7F9 0%, #FFEFF3 55%, #FFE6EB 100%)",
+        "text": "#1A1A1A",
+        "muted": "#8E8E93",
+        "accent": "#FF2442",
+        "accent2": "#FF8FA8",
+        "font_main": "-apple-system, 'BlinkMacSystemFont', 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', sans-serif",
+        "font_tag": "-apple-system, 'PingFang SC', sans-serif",
+        "quote_color": "#FF2442",
+        "deco": "xhs_rich",
         "letter_spacing": 3,
         "google_fonts": [],
     },
@@ -647,10 +663,43 @@ def build_decorations(theme, width, height, t):
         # 铜管装饰
         decos.append(f'<rect x="60" y="{height-60}" width="80" height="6" fill="{t["accent2"]}" opacity="0.3" rx="3"/>')
     elif deco == "xhs" or theme == "xhs":
-        # 小红书风格小圆点
+        # 小红书·简洁：45°极淡斜纹（纸张质感）+ 少量小圆点，保持呼吸感
+        stripes = []
+        step = 26
+        x = -height
+        while x < width + height:
+            stripes.append(
+                f'<line x1="{x}" y1="0" x2="{x + height}" y2="{height}" '
+                f'stroke="{t["accent"]}" stroke-width="1" opacity="0.035"/>'
+            )
+            x += step
+        decos.append("".join(stripes))
         decos.append(f'<circle cx="{width-70}" cy="70" r="6" fill="{t["accent"]}" opacity="0.15"/>')
         decos.append(f'<circle cx="{width-90}" cy="90" r="4" fill="{t["accent2"]}" opacity="0.2"/>')
         decos.append(f'<circle cx="70" cy="{height-70}" r="5" fill="{t["accent"]}" opacity="0.15"/>')
+    elif deco == "xhs_rich" or theme == "xhs_rich":
+        # 小红书·丰富：手账圆点纹 + 毛玻璃光晕 + 三段渐变波浪线
+        dots = []
+        gap = 46
+        y = gap
+        while y < height:
+            x = gap
+            while x < width:
+                dots.append(
+                    f'<circle cx="{x}" cy="{y}" r="2.2" fill="{t["accent"]}" opacity="0.10"/>'
+                )
+                x += gap
+            y += gap
+        decos.append("".join(dots))
+        # 毛玻璃光晕
+        decos.append(f'<circle cx="{width-110}" cy="150" r="90" fill="{t["accent2"]}" opacity="0.13"/>')
+        decos.append(f'<circle cx="90" cy="{height-180}" r="110" fill="{t["accent"]}" opacity="0.07"/>')
+        # 顶部三段渐变波浪线（模式B 标志性装饰）
+        wx = width // 2 - 26
+        wy = 150
+        decos.append(f'<rect x="{wx}" y="{wy}" width="28" height="5" rx="2.5" fill="{t["accent"]}" opacity="0.9"/>')
+        decos.append(f'<rect x="{wx+32}" y="{wy}" width="14" height="5" rx="2.5" fill="{t["accent"]}" opacity="0.5"/>')
+        decos.append(f'<rect x="{wx+50}" y="{wy}" width="7" height="5" rx="2.5" fill="{t["accent"]}" opacity="0.25"/>')
     elif deco == "glass" or theme == "glass":
         # 模糊光斑
         decos.append(f'<circle cx="{width-120}" cy="120" r="40" fill="{t["accent"]}" opacity="0.08"/>')
@@ -852,6 +901,7 @@ def main():
     parser = argparse.ArgumentParser(description="小红书风格统一卡片生成器")
     parser.add_argument("--theme", default="warm", help=f"主题 ({'/'.join(THEMES.keys())})")
     parser.add_argument("--all-themes", action="store_true", help="生成全部主题示例")
+    parser.add_argument("--list-themes", action="store_true", help="打印全部主题清单后退出")
     parser.add_argument("--demo", action="store_true", help="使用示例内容")
     parser.add_argument("--content", help="JSON 文件路径")
     parser.add_argument("--tag", help="顶部标签")
@@ -873,6 +923,12 @@ def main():
     parser.add_argument("--output", "-o", help="输出 PNG 路径")
     parser.add_argument("--output-dir", default="output", help="all-themes 输出目录")
     args = parser.parse_args()
+
+    if args.list_themes:
+        print(f"共 {len(THEMES)} 种主题：")
+        for key, cfg in THEMES.items():
+            print(f"  {key:<12} {cfg['name']}")
+        return
 
     # 内容
     if args.content:

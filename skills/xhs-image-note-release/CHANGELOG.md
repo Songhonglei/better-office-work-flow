@@ -3,6 +3,15 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.3.1 (2026-07-31)
+
+- **Fix**: XiaoHongShu style now has **two distinct modes** as originally documented in `text-to-elegant-image` repo: `xhs` = clean/formal mode, `xhs_rich` = lively/rich mode. Previously only the clean variant was implemented.
+- **Mode A (`xhs`)**: white background + faint 45° red pinstripes + minimal dot accents — high breathing room for knowledge notes.
+- **Mode B (`xhs_rich`)**: warm-pink gradient + hand-account dot pattern + glassmorphism blobs + three-segment gradient wave line — playful life-guide feel.
+- **Total themes**: **24** (18 repo styles, with xhs split into A/B + 4 young-people + 1 warm original).
+- **CLI**: added `--list-themes` to print all 24 themes and their display names.
+- **Docs**: SKILL.md theme table updated to reflect all 24 themes and xhs/xhs_rich distinction.
+
 ### v1.3.0 (2026-07-31)
 
 - **Breaking**: Port ALL 18 styles from `text-to-elegant-image` repo into the unified card generator. Total themes: **23** (18 repo + 4 young-people + 1 warm original).
