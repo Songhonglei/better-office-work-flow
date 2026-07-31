@@ -3,6 +3,12 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.2.1 (2026-07-31)
+
+- **Fix**: Frontmatter dependency declaration for skill-release-audit
+  - Add `bins: [ego-browser, node]`
+  - Move env vars to `metadata.openclaw.requires.env`
+
 ### v1.2.0 (2026-07-31)
 
 - **Fix**: Adapt to new Xiaohongshu creator platform UI — click "上传图文" tab at top instead of old "发布笔记" dropdown menu
