@@ -3,6 +3,15 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.2.4 (2026-07-31)
+
+- **Fix**: Card generator now auto-scales font size based on text length and line count to prevent overflow/cropping
+- **Improvement**: Theme-specific font stacks for better style matching
+  - `warm`/`minimal`: Songti SC serif (elegant/warm)
+  - `y2k`: geometric sans-serif (tech/cool)
+  - `doodle`: Chalkduster/Bradley Hand/Marker Felt with Kaiti fallback (hand-drawn feel)
+  - `pop`: bold sans-serif (energetic)
+
 ### v1.2.3 (2026-07-31)
 
 - **Feature**: Add built-in card generator (`references/card-generator/card_generator.py`) with 5 themes

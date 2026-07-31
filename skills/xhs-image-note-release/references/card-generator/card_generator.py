@@ -39,10 +39,11 @@ THEMES = {
         "muted": "#8C8070",
         "accent": "#C4A882",
         "accent2": "#D9C6B0",
-        "font_main": "'Songti SC', 'STSong', 'SimSun', serif",
+        "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
         "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
         "quote_color": "#C4A882",
         "deco": "none",
+        "letter_spacing": 4,
     },
     "minimal": {
         "name": "极简日系",
@@ -52,10 +53,11 @@ THEMES = {
         "muted": "#888888",
         "accent": "#1A1A1A",
         "accent2": "#E0E0E0",
-        "font_main": "'Songti SC', 'STSong', serif",
+        "font_main": "'Songti SC', 'STSong', 'Noto Serif SC', serif",
         "font_tag": "'PingFang SC', sans-serif",
         "quote_color": "#CCCCCC",
         "deco": "none",
+        "letter_spacing": 5,
     },
     "y2k": {
         "name": "Y2K 千禧潮酷",
@@ -65,10 +67,11 @@ THEMES = {
         "muted": "#B8B8D1",
         "accent": "#FF00CC",
         "accent2": "#00FFFF",
-        "font_main": "'PingFang SC', 'Helvetica Neue', sans-serif",
-        "font_tag": "'PingFang SC', sans-serif",
+        "font_main": "'PingFang SC', 'Helvetica Neue', 'Arial', 'Heiti SC', sans-serif",
+        "font_tag": "'PingFang SC', 'Helvetica Neue', sans-serif",
         "quote_color": "#00FFFF",
         "deco": "stars",
+        "letter_spacing": 3,
     },
     "doodle": {
         "name": "手绘涂鸦",
@@ -78,10 +81,11 @@ THEMES = {
         "muted": "#6B6B6B",
         "accent": "#FF6B35",
         "accent2": "#FFD23F",
-        "font_main": "'PingFang SC', 'Kaiti SC', cursive",
-        "font_tag": "'PingFang SC', sans-serif",
+        "font_main": "'Chalkduster', 'Bradley Hand', 'Marker Felt', 'Kaiti SC', 'STKaiti', 'PingFang SC', cursive",
+        "font_tag": "'Chalkduster', 'Bradley Hand', 'Marker Felt', 'PingFang SC', cursive",
         "quote_color": "#FF6B35",
         "deco": "doodles",
+        "letter_spacing": 2,
     },
     "pop": {
         "name": "渐变波普",
@@ -91,10 +95,11 @@ THEMES = {
         "muted": "#5A5A6E",
         "accent": "#FF3366",
         "accent2": "#3366FF",
-        "font_main": "'PingFang SC', 'Arial Black', sans-serif",
-        "font_tag": "'PingFang SC', sans-serif",
+        "font_main": "'PingFang SC', 'Arial Black', 'Impact', 'Heiti SC', sans-serif",
+        "font_tag": "'PingFang SC', 'Arial Black', sans-serif",
         "quote_color": "#FF3366",
         "deco": "dots",
+        "letter_spacing": 3,
     },
 }
 
@@ -102,6 +107,65 @@ THEMES = {
 
 def escape(text):
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def estimate_line_width(line, font_size, letter_spacing):
+    """估算单行文字在 SVG 中的像素宽度（含 letter-spacing）"""
+    # 中文字符占宽约 0.95em，英文/数字/标点约 0.55em
+    char_w = font_size * 0.95
+    half_w = font_size * 0.55
+    width = 0
+    for ch in line:
+        if ord(ch) > 127:
+            width += char_w
+        else:
+            width += half_w
+    # letter-spacing 加在每字之后，最后一个字符不加
+    if len(line) > 1:
+        width += (len(line) - 1) * letter_spacing
+    # 预留 8% 安全边距（不同字体渲染差异）
+    return width * 1.08
+
+
+def compute_font_size(lines, width, height, theme):
+    """根据行数、字数和卡片尺寸计算合适字号"""
+    n = len(lines) if lines else 1
+    max_chars = max(len(line) for line in lines) if lines else 4
+
+    # 最大字号上限（行数越多，上限越低）
+    max_sizes = {1: 130, 2: 120, 3: 95, 4: 78, 5: 64}
+    max_size = max_sizes.get(n, 56)
+    min_size = 38
+
+    # 可用宽度：左右各留 11% 边距
+    usable_width = width * 0.78
+    # 可用高度：顶部标签到底部 footer 之间
+    usable_height = height * 0.62
+
+    letter_spacing = theme.get("letter_spacing", 4)
+
+    # 先按字数给一个经验上限
+    if max_chars >= 14:
+        max_size = min(max_size, int(usable_width / (max_chars * 1.0)))
+    elif max_chars >= 10:
+        max_size = min(max_size, int(usable_width / (max_chars * 1.05)))
+    elif max_chars >= 7:
+        max_size = min(max_size, int(usable_width / (max_chars * 1.1)))
+
+    # 再按高度限制
+    line_height_at = lambda s: s * 1.6
+    max_by_height = int(usable_height / (n * 1.6))
+    max_size = min(max_size, max_by_height)
+
+    # 从候选字号向下找，确保每行都不溢出
+    for size in range(max_size, min_size - 1, -1):
+        all_fit = all(
+            estimate_line_width(line, size, letter_spacing) <= usable_width
+            for line in lines
+        )
+        if all_fit:
+            return max(size, min_size)
+    return min_size
 
 
 def build_svg(theme, width, height, content, options):
@@ -119,18 +183,11 @@ def build_svg(theme, width, height, content, options):
     show_page = options.get("show_page_number", True)
     show_account = options.get("show_account", True)
 
-    # 动态计算字号：根据行数和字数
-    max_chars = max(len(line) for line in lines) if lines else 4
-    if len(lines) <= 2:
-        font_size = min(112, 900 // max_chars) if max_chars > 5 else 120
-    elif len(lines) == 3:
-        font_size = min(96, 850 // max_chars) if max_chars > 5 else 100
-    elif len(lines) == 4:
-        font_size = min(82, 800 // max_chars) if max_chars > 5 else 88
-    else:
-        font_size = min(68, 750 // max_chars) if max_chars > 5 else 72
+    # 动态计算字号：按文字量自动缩放，确保不溢出
+    font_size = compute_font_size(lines, width, height, t)
+    letter_spacing = t.get("letter_spacing", 4)
 
-    line_height = font_size * 1.55
+    line_height = font_size * 1.6
     text_block_h = len(lines) * line_height
     start_y = (height - text_block_h) / 2 - 20
 
@@ -164,7 +221,7 @@ def build_svg(theme, width, height, content, options):
         text_parts.append(
             f'<text x="{width/2}" y="{y}" text-anchor="middle" font-size="{font_size}" '
             f'fill="{t['text']}" font-family="{t['font_main']}" font-weight="{weight}" '
-            f'letter-spacing="4">{escape(line)}</text>'
+            f'letter-spacing="{letter_spacing}">{escape(line)}</text>'
         )
 
     # 副标题
