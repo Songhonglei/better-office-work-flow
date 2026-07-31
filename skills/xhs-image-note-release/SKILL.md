@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.1.0
+version: 1.2.0
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -14,7 +14,7 @@ metadata:
     - BODY
 ---
 
-- **Version**: 1.1.0
+- **Version**: 1.2.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
@@ -45,7 +45,7 @@ metadata:
 ## 核心流程（9 步）
 
 ```
-创建 task space → 打开创作平台 → 等待 SPA 渲染(15s)
+创建 task space → 打开创作平台 → 等待 SPA 渲染(15s) → 点击「上传图文」tab
 → 上传图片(CDP 批量) → 填标题 → 填正文 → 关闭话题弹窗
 → 调用 _onPublish() 发布 → 等待跳转确认 → 清理 task space
 ```
@@ -65,17 +65,31 @@ EOF
 
 ### 2. 进入图文发布页
 
-如果页面显示「发布笔记」下拉按钮，先点击展开，再点击「上传图文」：
+新版创作平台顶部有 tab 导航，默认可能是「上传视频」。需要先点击「上传图文」tab：
 
 ```js
-const text = await snapshotText()
-// 用正则匹配 ref
-const match = text.match(/发布笔记.*?\[ref=(\d+)/)
-if (match) { await click('@' + match[1]); await wait(2) }
-const text2 = await snapshotText()
-const match2 = text2.match(/上传图文.*?\[ref=(\d+)/)
-if (match2) { await click('@' + match2[1]); await waitForNetworkIdle(5); await wait(3) }
+const clickResult = await js(`(() => {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
+  let node
+  while (node = walker.nextNode()) {
+    if (node.textContent.trim() === '上传图文') {
+      let element = node.parentElement
+      for (let i = 0; i < 4; i++) {
+        if (!element) break
+        element.click()
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+        element.dispatchEvent(event)
+        element = element.parentElement
+      }
+      return { clicked: true }
+    }
+  }
+  return { clicked: false }
+})()`)
+await wait(3)
 ```
+
+> **注意**：旧版 UI 使用「发布笔记」下拉菜单，但 2026 年 7 月起新版创作平台改为顶部 tab，因此改为按文本点击「上传图文」tab。
 
 ### 3. 上传图片（CDP 批量）
 
@@ -161,11 +175,11 @@ host._onPublish()
 
 ### 7. 等待发布完成
 
-调用 `_onPublish()` 后按钮进入 loading，约 5-10 秒后页面跳转到笔记管理列表。验证：
+调用 `_onPublish()` 后按钮进入 loading，约 5-10 秒后页面会重置并出现 `published=true` URL 参数。验证：
 
 ```js
 const info = await pageInfo()
-if (info.url.includes('note-manage')) {
+if (info.url.includes('published=true') || info.url.includes('note-manage')) {
   cliLog('SUCCESS: 发布成功！')
 }
 ```

@@ -89,22 +89,27 @@ if (!loginCheck.loggedIn) {
 }
 
 // ===== 第3步：进入图文发布页 =====
-const pageText = await snapshotText()
-
-// 尝试点击"发布笔记"展开下拉菜单
-const matchPublish = pageText.match(/发布笔记.*?\[ref=(\d+)/)
-if (matchPublish) {
-  await click('@' + matchPublish[1], { label: 'click 发布笔记 dropdown' })
-  await wait(2)
-
-  const text2 = await snapshotText()
-  const matchUpload = text2.match(/上传图文.*?\[ref=(\d+)/)
-  if (matchUpload) {
-    await click('@' + matchUpload[1], { label: 'click 上传图文' })
-    await waitForNetworkIdle(5)
-    await wait(3)
+// 新版创作平台顶部有 tab 导航，默认可能是「上传视频」，需要先点「上传图文」tab
+cliLog('Switching to 上传图文 tab...')
+await js(`(() => {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false)
+  let node
+  while (node = walker.nextNode()) {
+    if (node.textContent.trim() === '上传图文') {
+      let element = node.parentElement
+      for (let i = 0; i < 4; i++) {
+        if (!element) break
+        element.click()
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
+        element.dispatchEvent(event)
+        element = element.parentElement
+      }
+      return true
+    }
   }
-}
+  return false
+})()`)
+await wait(3)
 
 // ===== 第4步：上传图片（CDP 批量设置 file input）=====
 cliLog('Uploading ' + filePaths.length + ' files...')
@@ -182,12 +187,12 @@ await wait(10)
 const info = await pageInfo()
 cliLog('URL after publish: ' + info.url)
 
-if (info.url.includes('note-manage')) {
+if (info.url.includes('published=true') || info.url.includes('note-manage')) {
   cliLog('SUCCESS: 笔记发布成功！')
 } else {
   await wait(5)
   const info2 = await pageInfo()
-  if (info2.url.includes('note-manage')) {
+  if (info2.url.includes('published=true') || info2.url.includes('note-manage')) {
     cliLog('SUCCESS: 笔记发布成功！')
   } else {
     cliLog('WARNING: 发布状态不确定，请手动检查小红书笔记管理页')
