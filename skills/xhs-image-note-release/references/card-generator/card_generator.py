@@ -264,10 +264,6 @@ def build_svg(theme, width, height, content, options):
     subtitle_parts = []
     if show_subtitle and subtitle:
         subtitle_parts.append(
-            f'<line x1="{width/2 - 40}" y1="{subtitle_y - 30}" x2="{width/2 + 40}" y2="{subtitle_y - 30}" '
-            f'stroke="{t['accent']}" stroke-width="2"/>'
-        )
-        subtitle_parts.append(
             f'<text x="{width/2}" y="{subtitle_y}" text-anchor="middle" font-size="26" '
             f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="3">— {escape(subtitle)} —</text>'
         )
