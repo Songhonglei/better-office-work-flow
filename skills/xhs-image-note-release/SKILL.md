@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.2.2
+version: 1.2.3
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -218,6 +218,8 @@ await completeTaskSpace(task.id, { keep: false })
 
 ## 快速复用
 
+### 发布已有图片
+
 修改 `scripts/publish_note.sh` 中的 4 个参数后直接运行：
 
 ```bash
@@ -228,6 +230,42 @@ BODY='正文内容\n\n#话题1 #话题2'
 
 bash ~/.workbuddy/skills/xhs-image-note-release/scripts/publish_note.sh
 ```
+
+### 先用本技能生成卡片，再发布
+
+本技能附带统一风格卡片生成器，位于 `references/card-generator/card_generator.py`。
+
+```bash
+python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/card_generator.py \
+  --theme warm \
+  --tag "人生随笔" \
+  --lines "周五了\\n你还活着吗\\n去外面走走" \
+  --subtitle "关于活着" \
+  --page-number 1 \
+  --total-pages 6 \
+  --account "@雨夜心灯" \
+  -o ./card.png
+```
+
+**5 种内置主题**：`warm`（温暖哲思）、`minimal`（极简日系）、`y2k`（Y2K 千禧潮酷）、`doodle`（手绘涂鸦）、`pop`（渐变波普）。
+
+**自定义参数**：
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| `--theme` | 主题风格 | `--theme y2k` |
+| `--tag` | 顶部标签 | `--tag 人生随笔` |
+| `--lines` | 主文案，用 `\\n` 分行 | `--lines "第一行\\n第二行"` |
+| `--subtitle` | 副标题（短横线下方） | `--subtitle 关于自省` |
+| `--page-number` / `--total-pages` | 页码 | `--page-number 2 --total-pages 6` |
+| `--account` | 右下角账号 | `--account @雨夜心灯` |
+| `--hide-page-number` | 隐藏页码 | 默认显示 |
+| `--hide-account` | 隐藏账号 | 默认显示 |
+| `--hide-tag` | 隐藏顶部标签 | 默认显示 |
+| `--hide-subtitle` | 隐藏副标题 | 默认显示 |
+| `--width` / `--height` | 输出尺寸 | 默认 `1080x1440` |
+
+生成后配合 `publish_note.sh` 发布即可。
 
 ## 注意事项
 
