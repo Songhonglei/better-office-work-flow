@@ -3,7 +3,7 @@ name: xhs-image-note-release
 version: 1.4.0
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
-  话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
+  话题标签、发布等全流程。附带 25 种多样式风格卡片生成器，卡片主题、布局、插画、署名等参数均可自由配置。
   当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖或涉及小红书内容发布时触发此技能。
   前置依赖：ego-browser (ego-lite) 已安装且正在运行，小红书账号已登录。
 bins: [ego-browser, node]
@@ -24,7 +24,7 @@ metadata:
 
 # xhs-image-note-release
 
-通过 ego-browser 自动化发布小红书图文笔记。覆盖从打开创作平台到发布成功的完整流程，包含图片批量上传、标题/正文填写、话题标签、以及最关键的发布按钮处理。
+通过 ego-browser 自动化发布小红书图文笔记。覆盖从打开创作平台到发布成功的完整流程，包含图片批量上传、标题/正文填写、话题标签、一键发布等。附带 25 种多样式风格卡片生成器，卡片参数可自由配置。
 
 ## Dependencies
 
@@ -34,17 +34,19 @@ metadata:
 |------|------|------|----------|------|
 | **ego-browser** (ego-lite) | CLI 工具 + Skill | 浏览器自动化引擎，提供 CDP、snapshot、fillInput 等 API | 参考 [ego-browser skill](https://github.com/Songhonglei/better-office-work-flow) 安装 | `ego-browser --version` 能正常输出版本号 |
 | **小红书账号** | 平台账号 | 需在 ego-lite 浏览器中已登录小红书 | 手动在 ego-lite 中登录 creator.xiaohongshu.com | 打开创作平台能看到发布按钮 |
-| **WorkBuddy 沙箱** | 环境配置 | 沙箱模式会 SIGKILL ego-browser 进程（exit 137） | WorkBuddy 设置 → 关闭沙箱 | 运行 `ego-browser --version` 不报 sandbox 错误 |
 | **Google Chrome / Chromium** | 系统浏览器 | 卡片生成器 (`card_generator.py`) 使用 Chrome headless 渲染 PNG | macOS: 从 [google.com/chrome](https://www.google.com/chrome/) 安装；Linux: `apt install chromium-browser` | 终端运行 `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version` 或 `chromium --version` |
 
+> **特别提示（仅 WorkBuddy 环境）**：较新版本的 WorkBuddy 需先关闭沙箱功能（设置 → 关闭沙箱），否则运行 ego-browser 会被中断。这**不是本技能的依赖**——在终端或其他 Agent 中直接运行本技能无需任何沙箱相关操作。
+>
 > **ego-browser API**：本技能代码中使用的 `useOrCreateTaskSpace`、`openOrReuseTab`、`snapshotText`、`click`、`fillInput`、`typeText`、`pressKey`、`cdp`、`js`、`pageInfo`、`completeTaskSpace`、`captureScreenshot`、`wait`、`waitForNetworkIdle`、`cliLog` 均为 ego-browser 提供的 API，需先 `Skill("ego-browser")` 加载后使用。
 
 ## 前置条件
 
 1. **ego-lite 已安装且运行中** — ego-browser CLI 依赖 ego-lite app 提供的浏览器环境
-2. **WorkBuddy 沙箱已关闭** — 沙箱模式下 ego-browser 进程会被 SIGKILL（exit 137），需在 WorkBuddy 设置中关闭沙箱
-3. **小红书已登录** — ego-browser 继承用户登录态，需在 ego-lite 中手动登录小红书一次
-4. **已加载 ego-browser 技能** — 先 `Skill("ego-browser")` 加载浏览器操作技能
+2. **小红书已登录** — ego-browser 继承用户登录态，需在 ego-lite 中手动登录小红书一次
+3. **已加载 ego-browser 技能** — 先 `Skill("ego-browser")` 加载浏览器操作技能
+
+> **特别提示（仅 WorkBuddy 环境）**：较新版本的 WorkBuddy 需先关闭沙箱功能（设置 → 关闭沙箱），否则运行 ego-browser 会被中断。这不是本技能的依赖，在终端或其他 Agent 中直接运行无需此操作。
 
 ## 核心流程（9 步）
 
@@ -158,34 +160,9 @@ await wait(1)
 await pressKey('Escape')
 ```
 
-### 6. 点击发布按钮（最关键的坑点）
+### 6. 触发发布
 
-#### 问题
-
-小红书的「发布」按钮封装在 **`<xhs-publish-btn>`** 自定义组件中，使用 **closed Shadow DOM**：
-
-```html
-<xhs-publish-btn submit-text="发布" submit-disabled="false">
-  #shadow-root (closed)    ← closed 意味着 host.shadowRoot 返回 null
-    <div class="publish-page-publish-btn">
-      <button class="ce-btn bg-red">发布</button>
-    </div>
-</xhs-publish-btn>
-```
-
-#### 无效的方法
-
-| 方法 | 结果 |
-|---|---|
-| `querySelector('button.ce-btn.bg-red')` | 找不到（在 shadow DOM 内） |
-| `host.shadowRoot.querySelector(...)` | `shadowRoot` 为 `null`（closed） |
-| `click('@N')` / 坐标点击 | snapshotText 不穿透 shadow DOM |
-| `cdp('DOM.performSearch', {pierce: true})` | 找到节点但 nodeId=0 |
-| `cdp('Input.dispatchMouseEvent', {x, y})` | 不触发 Vue 事件 |
-
-#### 成功的方法
-
-**直接调用组件暴露的内部方法 `_onPublish()`**：
+小红书的「发布」按钮封装为自定义 Web Component（`<xhs-publish-btn>`），常规选择器或坐标点击无法命中，需直接调用其暴露的发布方法：
 
 ```js
 const host = document.querySelector('xhs-publish-btn')
@@ -196,9 +173,7 @@ const loading = host.getAttribute('submit-loading')     // 'false' = 未加载
 host._onPublish()
 ```
 
-**原理**：`<xhs-publish-btn>` 是 Web Component，原型链上暴露了 `_onPublish` 和 `_onSave` 方法。通过 `host._onPublish()` 直接调用，绕过 Shadow DOM 封装。
-
-**发现方法**：`Object.getOwnPropertyNames(Object.getPrototypeOf(host))` 列出原型方法找到 `_onPublish`。
+> 若需了解完整的失败方案对比与排查细节，参见 `references/publish-method.md`。
 
 ### 7. 等待发布完成
 
@@ -302,7 +277,7 @@ python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/car
 
 ## 注意事项
 
-1. **沙箱**：如果报错 `from the default agent sandbox`，需在 WorkBuddy 设置中关闭沙箱后重试
+1. **沙箱（仅 WorkBuddy 环境）**：若在 WorkBuddy 中运行报错 `from the default agent sandbox`，请在设置中关闭沙箱后重试（见上文「特别提示」）
 2. **SPA 渲染**：首次加载等 15 秒，不要用 `waitForNetworkIdle` 代替
 3. **话题标签**：正文中的 `#话题` 自动被识别，输入后弹建议列表，按 `Escape` 关闭
 4. **发布频率**：**严禁**短时间连续发多篇，可能触发风控；建议每次发布间隔至少 5 分钟
@@ -316,4 +291,4 @@ python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/car
 - `scripts/publish_note.sh` — 一键发布脚本，修改 4 个参数即可复用
 
 ### references/
-- `references/publish-method.md` — 完整方法文档，含失败方案对比表和技术原理详解。**按需加载**：当需要了解发布按钮失败方案的完整对比、或需要排查 closed Shadow DOM 穿透问题时阅读此文件；正常发布流程无需提前加载
+- `references/publish-method.md` — 完整方法文档，含失败方案对比表和技术原理详解。**按需加载**：当需要了解发布按钮各失败方案的完整对比、或需要排查发布相关问题时阅读此文件；正常发布流程无需提前加载

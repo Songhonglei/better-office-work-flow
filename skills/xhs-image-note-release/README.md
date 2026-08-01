@@ -1,15 +1,14 @@
 # xhs-image-note-release
 
-> 通过 ego-browser 自动化发布小红书图文笔记，核心解决 closed Shadow DOM 发布按钮无法点击的问题。
+> 通过 ego-browser 自动化发布小红书图文笔记：全流程一键自动发布、25 种多样式风格卡片、卡片参数自由配置。
 
 ## Features
 
-- 全自动 9 步流程：打开创作平台 → 上传图片 → 填标题/正文 → 发布 → 清理
-- CDP 批量上传图片（绕过 uploadFile 逗号分隔不生效的坑）
-- **穿透 closed Shadow DOM 点击发布按钮**（`_onPublish()` 方法调用）
-- 附带一键发布脚本，改 4 个参数即可复用
-- **内置卡片生成器**，25 种主题、统一小红书金句卡布局、支持纯文字与图文两种布局、支持自定义页码/账号等参数
-- 完整技术文档含 5 种失败方案对比表
+- **全自动发布**：打开创作平台 → 上传图片 → 填标题/正文/话题 → 发布 → 清理，全流程一键完成
+- **25 种多样式风格**：内置卡片生成器，涵盖温暖哲思、Y2K、蒸汽朋克、水墨、故宫金红等风格，统一小红书金句卡布局
+- **卡片高度可配置**：主题 / 布局 / 插画 / 标签 / 署名 / 页码等参数自由组合，支持纯文字与图文两种布局
+- **一键发布脚本**：修改 4 个参数即可复用，无需重复操作
+- 附带完整技术文档，含使用指引与排查参考
 
 ## Card Themes (25)
 
@@ -88,8 +87,9 @@ python3 references/card-generator/card_generator.py --list-themes
 |------|------|----------|
 | **ego-browser** (ego-lite) | CLI 工具 + Skill | `bash ~/.workbuddy/skills/ego-browser/scripts/install.sh` |
 | **小红书账号** | 平台账号 | 在 ego-lite 中手动登录 creator.xiaohongshu.com |
-| **WorkBuddy 沙箱关闭** | 环境配置 | WorkBuddy 设置 → 关闭沙箱 |
 
+> **特别提示（仅 WorkBuddy 环境）**：较新版本的 WorkBuddy 需先关闭沙箱功能（设置 → 关闭沙箱），否则运行 ego-browser 会被中断。这**不是本技能的依赖**——在终端或其他 Agent 中直接运行本技能无需任何沙箱相关操作。
+>
 > 详见 [SKILL.md](./SKILL.md) 的 Dependencies 章节。
 
 ## Quick Start
