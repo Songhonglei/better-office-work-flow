@@ -8,28 +8,28 @@
 - CDP 批量上传图片（绕过 uploadFile 逗号分隔不生效的坑）
 - **穿透 closed Shadow DOM 点击发布按钮**（`_onPublish()` 方法调用）
 - 附带一键发布脚本，改 4 个参数即可复用
-- **内置卡片生成器**，24 种主题、统一小红书金句卡布局、支持自定义页码/账号等参数
+- **内置卡片生成器**，25 种主题、统一小红书金句卡布局、支持纯文字与图文两种布局、支持自定义页码/账号等参数
 - 完整技术文档含 5 种失败方案对比表
 
-## Card Themes (24)
+## Card Themes (25)
 
-所有主题共用同一套布局（顶部标签 + 引号 / 中间大字 / 底部副标题 + 页码 + 账号），改布局一次全生效。
+所有主题共用同一套**纯文字布局**（顶部标签 + 引号 / 中间大字 / 底部副标题 + 页码 + 账号），改布局一次全生效。另有 `warm_illust` 主题适配**图文布局**（顶部简笔画 + 窄列居中文字 + 底部署名）。
 
 <table>
 <tr>
 <td align="center"><img src="assets/themes/warm.jpg" width="230"><br><code>warm</code><br>温暖哲思</td>
+<td align="center"><img src="assets/themes/warm_illust.jpg" width="230"><br><code>warm_illust</code><br>温暖简笔哲思</td>
 <td align="center"><img src="assets/themes/y2k.jpg" width="230"><br><code>y2k</code><br>Y2K 千禧潮酷</td>
-<td align="center"><img src="assets/themes/doodle.jpg" width="230"><br><code>doodle</code><br>手绘涂鸦</td>
 </tr>
 <tr>
+<td align="center"><img src="assets/themes/doodle.jpg" width="230"><br><code>doodle</code><br>手绘涂鸦</td>
 <td align="center"><img src="assets/themes/pop.jpg" width="230"><br><code>pop</code><br>渐变波普</td>
 <td align="center"><img src="assets/themes/minimal.jpg" width="230"><br><code>minimal</code><br>极简日系</td>
-<td align="center"><img src="assets/themes/cyberpunk.jpg" width="230"><br><code>cyberpunk</code><br>赛博科技</td>
 </tr>
 <tr>
+<td align="center"><img src="assets/themes/cyberpunk.jpg" width="230"><br><code>cyberpunk</code><br>赛博科技</td>
 <td align="center"><img src="assets/themes/elegant.jpg" width="230"><br><code>elegant</code><br>极简优雅</td>
 <td align="center"><img src="assets/themes/apple.jpg" width="230"><br><code>apple</code><br>Apple 质感</td>
-<td align="center"><img src="assets/themes/cowork.jpg" width="230"><br><code>cowork</code><br>轻科技</td>
 </tr>
 <tr>
 <td align="center"><img src="assets/themes/newspaper.jpg" width="230"><br><code>newspaper</code><br>报纸杂志</td>
@@ -68,6 +68,15 @@ python3 references/card-generator/card_generator.py \
   --page-number 1 --total-pages 6 \
   --account "@雨夜心灯" \
   -o card.png
+
+# 生成图文卡片（顶部简笔画 + 窄列居中文字 + 底部署名）
+python3 references/card-generator/card_generator.py \
+  --layout image-text \
+  --illustration door.svg \
+  --theme warm_illust \
+  --lines "周五了。\n把工牌摘下来，" \
+  --account "@雨夜心灯" \
+  -o illust-card.png
 
 # 查看全部主题清单
 python3 references/card-generator/card_generator.py --list-themes

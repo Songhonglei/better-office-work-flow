@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.3.3
+version: 1.4.0
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -17,7 +17,7 @@ metadata:
         - BODY
 ---
 
-- **Version**: 1.3.3
+- **Version**: 1.4.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
@@ -246,13 +246,22 @@ python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/car
   --total-pages 6 \
   --account "@雨夜心灯" \
   -o ./card.png
+
+# 图文卡片：顶部简笔画 + 窄列居中文字 + 底部署名
+python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/card_generator.py \
+  --layout image-text \
+  --illustration ./door.svg \
+  --theme warm_illust \
+  --lines "周五了。\\n把工牌摘下来，" \
+  --account "@雨夜心灯" \
+  -o ./illust-card.png
 ```
 
-**24 种内置主题**（全部共用同一套布局，改布局一次全生效）：
+**25 种内置主题**（纯文字布局全部共用同一套布局；图文布局额外支持 `warm_illust`）：
 
 | 分组 | 主题 key |
 |------|---------|
-| 年轻人风格 | `warm` 温暖哲思、`y2k` Y2K 千禧潮酷、`doodle` 手绘涂鸦、`pop` 渐变波普、`minimal` 极简日系 |
+| 年轻人风格 | `warm` 温暖哲思、`warm_illust` 温暖简笔哲思、`y2k` Y2K 千禧潮酷、`doodle` 手绘涂鸦、`pop` 渐变波普、`minimal` 极简日系 |
 | 科技 / 商务 | `cyberpunk` 赛博科技、`apple` Apple 质感、`cowork` 轻科技、`bloomberg` Bloomberg 终端、`carbon` 暗色极简 |
 | 文艺 / 复古 | `elegant` 极简优雅、`newspaper` 报纸杂志、`ink` 水墨卷轴、`steampunk` 蒸汽朋克、`palace` 故宫金红 |
 | 生活 / 治愈 | `xhs` 小红书·简洁、`xhs_rich` 小红书·丰富、`morandi` 莫兰迪灰、`glass` 玻璃拟态、`fresh` 清新绿、`earthy` 大地原木、`dreamy` 紫梦幻、`macaron` 马卡龙、`vivid` 活力渐变 |
@@ -266,16 +275,28 @@ python3 ~/.workbuddy/skills/xhs-image-note-release/references/card-generator/car
 | 参数 | 说明 | 示例 |
 |------|------|------|
 | `--theme` | 主题风格 | `--theme y2k` |
-| `--tag` | 顶部标签 | `--tag 人生随笔` |
+| `--layout` | 布局：`text` 纯文字（默认）、`image-text` 图文 | `--layout image-text` |
+| `--illustration` | image-text 布局的插画文件（`.svg` / `.png` / `.jpg`） | `--illustration ./door.svg` |
+| `--image-text-width` | image-text 文字区宽度占比（0.5–0.8，默认 0.65） | `--image-text-width 0.7` |
+| `--tag` | 顶部标签（仅 text 布局默认显示） | `--tag 人生随笔` |
 | `--lines` | 主文案，用 `\\n` 分行 | `--lines "第一行\\n第二行"` |
-| `--subtitle` | 副标题（短横线下方） | `--subtitle 关于自省` |
-| `--page-number` / `--total-pages` | 页码 | `--page-number 2 --total-pages 6` |
-| `--account` | 右下角账号 | `--account @雨夜心灯` |
+| `--subtitle` | 副标题（短横线下方，仅 text 布局） | `--subtitle 关于自省` |
+| `--page-number` / `--total-pages` | 页码（仅 text 布局） | `--page-number 2 --total-pages 6` |
+| `--account` | 右下角账号（text）/ 底部署名（image-text） | `--account @雨夜心灯` |
 | `--hide-page-number` | 隐藏页码 | 默认显示 |
 | `--hide-account` | 隐藏账号 | 默认显示 |
 | `--hide-tag` | 隐藏顶部标签 | 默认显示 |
 | `--hide-subtitle` | 隐藏副标题 | 默认显示 |
 | `--width` / `--height` | 输出尺寸 | 默认 `1080x1440` |
+
+**图文布局（`--layout image-text`）说明**：
+
+- 顶部居中展示插画，下方是窄列居中文字，再下方是短横线 + 账号署名。
+- 文案宽度默认为卡片宽度的 65%，适合短句分行，营造留白和呼吸感。
+- 不显示 tag、subtitle、页码，保持画面极简。
+- 推荐主题：`warm_illust`（米白底、黑线稿、琥珀色点缀，与截图示例一致）。
+- SVG 插画：建议插画本身以原点为中心、无多余留白；生成器会自动提取第一个 `<g>` 元素并居中放置。
+- PNG/JPG 插画：建议使用已裁切好的插画图（去除背景文字），生成器会按最大 55% 宽度 / 32% 高度等比缩放。
 
 生成后配合 `publish_note.sh` 发布即可。
 

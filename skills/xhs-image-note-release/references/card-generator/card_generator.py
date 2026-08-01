@@ -4,9 +4,11 @@
 
 布局参考：米白/浅米色背景、顶部「标签 + 引号装饰」、中间大字居中文案、
 底部短横线 + 左页码 / 右账号。支持多主题配色与自定义 footer 参数。
+新增「图文卡片」布局：顶部简笔画 + 窄列居中文字 + 底部署名。
 
 用法:
   python3 card_generator.py --theme warm --lines "周五了\n你还活着吗" --subtitle "关于活着" --page-number 1 --total-pages 6 --account "@雨夜心灯" -o card.png
+  python3 card_generator.py --layout image-text --illustration door.svg --theme warm_illust --lines "周五了。\n把工牌摘下来" --account "@雨夜心灯" -o card.png
   python3 card_generator.py --all-themes --demo --output-dir ./demo
 """
 
@@ -14,9 +16,11 @@ import os
 import sys
 import json
 import math
+import base64
 import subprocess
 import tempfile
 import argparse
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
@@ -29,7 +33,7 @@ CHROME_CANDIDATES = [
 
 # ─── 主题配置 ──────────────────────────────────────────────────────
 # 每个主题：背景、文字、点缀、装饰元素、字体
-# 来源：text-to-elegant-image 仓库 18 种（其中小红书拆 A/B 两模式）+ 4 种年轻人风格 + warm 原创 = 24 种
+# 来源：text-to-elegant-image 仓库 18 种（其中小红书拆 A/B 两模式）+ 4 种年轻人风格 + warm 原创 + warm_illust 图文 = 25 种
 THEMES = {
     # ── 原创风格 ──────────────────────────────────────────────
     "warm": {
@@ -45,6 +49,21 @@ THEMES = {
         "quote_color": "#C4A882",
         "deco": "warm",
         "letter_spacing": 4,
+        "google_fonts": [],
+    },
+    "warm_illust": {
+        "name": "温暖简笔哲思",
+        "bg": "#FAF7F2",
+        "bg_gradient": None,
+        "text": "#3A3A3A",
+        "muted": "#9A9A9A",
+        "accent": "#D4A84B",
+        "accent2": "#F5E6C8",
+        "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
+        "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "quote_color": "#D4A84B",
+        "deco": "warm_illust",
+        "letter_spacing": 3,
         "google_fonts": [],
     },
     # ── 年轻人风格（新增，非仓库原始） ────────────────────────
@@ -439,7 +458,7 @@ def estimate_line_width(line, font_size, letter_spacing):
     return width * 1.08
 
 
-def compute_font_size(lines, width, height, theme):
+def compute_font_size(lines, width, height, theme, text_width_ratio=0.78):
     """根据行数、字数和卡片尺寸计算合适字号"""
     n = len(lines) if lines else 1
     max_chars = max(len(line) for line in lines) if lines else 4
@@ -449,8 +468,8 @@ def compute_font_size(lines, width, height, theme):
     max_size = max_sizes.get(n, 56)
     min_size = 38
 
-    # 可用宽度：左右各留 11% 边距
-    usable_width = width * 0.78
+    # 可用宽度由 text_width_ratio 控制（图文布局更窄）
+    usable_width = width * text_width_ratio
     # 可用高度：顶部标签到底部 footer 之间
     usable_height = height * 0.62
 
@@ -577,6 +596,114 @@ def build_svg(theme, width, height, content, options):
     return "\n".join(svg_parts)
 
 
+def load_illustration(path):
+    """加载插画文件：SVG 提取首个 <g> 内容；PNG/JPG 转 base64 data URI"""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"插画文件不存在: {path}")
+    ext = p.suffix.lower()
+    if ext == ".svg":
+        content = p.read_text(encoding="utf-8")
+        # 提取第一个 <g> 元素（含嵌套），用于嵌入到新的卡片 SVG 中
+        try:
+            root = ET.fromstring(content.encode("utf-8"))
+            ns = {"svg": "http://www.w3.org/2000/svg"}
+            g = root.find(".//svg:g", ns)
+            if g is None:
+                g = root.find(".//{http://www.w3.org/2000/svg}g")
+            if g is not None:
+                # 移除原 SVG 里的 transform（如 translate(540,400)），
+                # 避免与卡片里的 translate 叠加导致偏移
+                if "transform" in g.attrib:
+                    del g.attrib["transform"]
+                # 移除可能冲突的命名空间前缀
+                ET.register_namespace("", "http://www.w3.org/2000/svg")
+                inner = ET.tostring(g, encoding="unicode")
+                return ("svg_inner", inner)
+        except ET.ParseError:
+            pass
+        # 解析失败则整体作为 foreignObject / image 使用（不常见）
+        return ("svg_raw", content)
+    elif ext in (".png", ".jpg", ".jpeg"):
+        mime = "image/png" if ext == ".png" else "image/jpeg"
+        data = p.read_bytes()
+        b64 = base64.b64encode(data).decode("ascii")
+        return ("raster", f"data:{mime};base64,{b64}")
+    else:
+        raise ValueError(f"不支持的插画格式: {ext}（请用 .svg / .png / .jpg）")
+
+
+def build_image_text_svg(theme, width, height, content, options, illustration):
+    """生成「图文卡片」布局：顶部插画 + 窄列居中文字 + 底部署名"""
+    t = THEMES[theme]
+    lines = content.get("lines", ["未命名卡片"])
+    account = content.get("account", "")
+    text_width_ratio = options.get("text_width_ratio", 0.65)
+
+    # 字号按窄列计算
+    font_size = compute_font_size(lines, width, height, t, text_width_ratio=text_width_ratio)
+    letter_spacing = t.get("letter_spacing", 4)
+    line_height = font_size * 1.7
+    text_block_h = len(lines) * line_height
+
+    # 布局比例（以 1080x1440 为基准，按高度缩放）
+    illustration_y = int(height * 0.28)
+    text_start_y = int(height * 0.54)
+    footer_y = int(height * 0.82)
+
+    illust_type, illust_payload = illustration
+    if illust_type == "svg_inner":
+        # 将提取到的 <g> 居中放置在插画区；保留原 transform
+        illustration_block = f'<g transform="translate({width/2}, {illustration_y})">{illust_payload}</g>'
+    elif illust_type == "svg_raw":
+        illustration_block = f'<g transform="translate({width/2}, {illustration_y})">{illust_payload}</g>'
+    else:  # raster
+        max_w = int(width * 0.55)
+        max_h = int(height * 0.32)
+        illustration_block = (
+            f'<image x="{width/2 - max_w/2}" y="{illustration_y - max_h/2}" '
+            f'width="{max_w}" height="{max_h}" href="{illust_payload}" '
+            f'preserveAspectRatio="xMidYMid meet"/>'
+        )
+
+    text_parts = []
+    max_text_width = width * text_width_ratio
+    for i, line in enumerate(lines):
+        y = text_start_y + i * line_height + font_size * 0.85
+        text_parts.append(
+            f'<text x="{width/2}" y="{y}" text-anchor="middle" font-size="{font_size}" '
+            f'fill="{t['text']}" font-family="{t['font_main']}" font-weight="400" '
+            f'letter-spacing="{letter_spacing}">{escape(line)}</text>'
+        )
+
+    footer_parts = []
+    if account:
+        line_x1 = width * 0.42
+        line_x2 = width * 0.58
+        footer_parts.append(
+            f'<line x1="{line_x1}" y1="{footer_y}" x2="{line_x2}" y2="{footer_y}" '
+            f'stroke="{t['accent']}" stroke-width="2"/>'
+        )
+        footer_parts.append(
+            f'<text x="{width/2}" y="{footer_y + 40}" text-anchor="middle" font-size="22" '
+            f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="6">{escape(account)}</text>'
+        )
+
+    decorations = build_decorations(theme, width, height, t)
+
+    svg_parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
+        f'<rect width="{width}" height="{height}" fill="{t['bg']}"/>',
+    ]
+    svg_parts.extend(decorations)
+    svg_parts.append(illustration_block)
+    svg_parts.extend(text_parts)
+    svg_parts.extend(footer_parts)
+    svg_parts.append('</svg>')
+
+    return "\n".join(svg_parts)
+
+
 def build_decorations(theme, width, height, t):
     """根据主题添加装饰元素"""
     decos = []
@@ -606,6 +733,11 @@ def build_decorations(theme, width, height, t):
         decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t['accent']}" opacity="0.5"/>')
         decos.append(f'<circle cx="{width-110}" cy="110" r="2" fill="{t['accent']}" opacity="0.4"/>')
         decos.append(f'<circle cx="90" cy="{height-100}" r="3" fill="{t['accent']}" opacity="0.5"/>')
+    elif deco == "warm_illust" or theme == "warm_illust":
+        # 温暖简笔哲思：极淡琥珀色光晕 + 小点，不抢插画风头
+        decos.append(f'<circle cx="{width-120}" cy="120" r="4" fill="{t['accent']}" opacity="0.25"/>')
+        decos.append(f'<circle cx="{width-145}" cy="145" r="2.5" fill="{t['accent']}" opacity="0.18"/>')
+        decos.append(f'<circle cx="120" cy="{height-120}" r="3" fill="{t['accent']}" opacity="0.22"/>')
     elif deco == "palace" or theme == "palace":
         seal_x, seal_y, seal_r = width - 100, 100, 28
         decos.append(f'<rect x="{seal_x - seal_r}" y="{seal_y - seal_r}" width="{seal_r * 2}" height="{seal_r * 2}" fill="{t['accent2']}" opacity="0.85" rx="3"/>')
@@ -729,10 +861,16 @@ def build_decorations(theme, width, height, t):
     return decos
 
 
-def build_html(theme, width, height, content, options):
+def build_html(theme, width, height, content, options, illustration=None):
     """把 SVG 包装成 HTML 供 Chrome 渲染"""
     t = THEMES[theme]
-    svg = build_svg(theme, width, height, content, options)
+    layout = options.get("layout", "text")
+    if layout == "image-text":
+        if illustration is None:
+            raise ValueError("image-text 布局必须提供 --illustration 插画文件")
+        svg = build_image_text_svg(theme, width, height, content, options, illustration)
+    else:
+        svg = build_svg(theme, width, height, content, options)
 
     # 如果主题有渐变背景，用 CSS 实现更稳
     bg_css = f"background: {t['bg']};"
@@ -908,6 +1046,9 @@ def main():
     parser.add_argument("--hide-subtitle", action="store_true", help="隐藏副标题")
     parser.add_argument("--hide-page-number", action="store_true", help="隐藏页码")
     parser.add_argument("--hide-account", action="store_true", help="隐藏账号")
+    parser.add_argument("--layout", choices=["text", "image-text"], default="text", help="布局：text（默认纯文字）或 image-text（顶部插画+文字）")
+    parser.add_argument("--illustration", help="image-text 布局的插画文件路径（.svg / .png / .jpg）")
+    parser.add_argument("--image-text-width", type=float, default=0.65, help="image-text 文字区宽度占比（0.5-0.8，默认 0.65）")
     parser.add_argument("--width", type=int, default=1080, help="输出宽度")
     parser.add_argument("--height", type=int, default=1440, help="输出高度")
     parser.add_argument("--output", "-o", help="输出 PNG 路径")
@@ -949,7 +1090,16 @@ def main():
         "show_subtitle": not args.hide_subtitle,
         "show_page_number": not args.hide_page_number,
         "show_account": not args.hide_account,
+        "layout": args.layout,
+        "text_width_ratio": max(0.5, min(0.8, args.image_text_width)),
     }
+
+    # 加载插画
+    illustration = None
+    if args.layout == "image-text":
+        if not args.illustration:
+            parser.error("image-text 布局需要 --illustration 指定插画文件")
+        illustration = load_illustration(args.illustration)
 
     if args.all_themes:
         out_dir = Path(args.output_dir)
@@ -958,7 +1108,7 @@ def main():
         for theme in THEMES:
             out_path = str(out_dir / f"{theme}.png")
             print(f"生成 {theme} ...")
-            html = build_html(theme, args.width, args.height, content, options)
+            html = build_html(theme, args.width, args.height, content, options, illustration=illustration)
             if render_png(html, out_path, args.width, args.height):
                 results.append((theme, out_path))
         print(f"\n完成！共生成 {len(results)} 张")
@@ -973,7 +1123,7 @@ def main():
         out_path = args.output or f"output/{args.theme}.png"
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 
-        html = build_html(args.theme, args.width, args.height, content, options)
+        html = build_html(args.theme, args.width, args.height, content, options, illustration=illustration)
         if render_png(html, out_path, args.width, args.height):
             print(f"输出: {out_path}")
 

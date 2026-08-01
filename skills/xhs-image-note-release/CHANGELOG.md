@@ -3,6 +3,19 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.4.0 (2026-08-01)
+
+- **Feature**: 新增「图文卡片」布局（`--layout image-text`），与现有「纯文字」布局（`--layout text`，默认）并列可选。
+- **Image-text layout**: 顶部插画 + 窄列居中文字（默认宽度 65%）+ 底部署名短横线 + 账号，整体延续温暖简笔哲思风。
+- **New theme**: `warm_illust`（温暖简笔哲思），配色与截图示例一致：米白底 `#FAF7F2`、黑线稿、琥珀色 `#D4A84B` 点缀。
+- **New CLI args**:
+  - `--layout {text,image-text}` — 切换布局
+  - `--illustration PATH` — image-text 布局的插画文件（支持 `.svg` / `.png` / `.jpg`）
+  - `--image-text-width RATIO` — 文字区宽度占比（0.5–0.8，默认 0.65）
+- **SVG illustration handling**: 自动提取 SVG 第一个 `<g>` 元素，移除原 `transform` 后居中放置，避免与卡片坐标叠加偏移。
+- **Raster illustration handling**: PNG/JPG 转 base64 data URI，按最大 55% 宽度 / 32% 高度等比缩放（`preserveAspectRatio="xMidYMid meet"`）。
+- **Docs**: SKILL.md 与 README 主题画廊更新为 25 种主题，新增图文布局用法示例。
+
 ### v1.3.3 (2026-08-01)
 
 - **Audit Fix**: UGLIC + skill-release-audit 两轮审计发现的全部 ERR/WARN 修复。
