@@ -3,6 +3,20 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.3.3 (2026-08-01)
+
+- **Audit Fix**: UGLIC + skill-release-audit 两轮审计发现的全部 ERR/WARN 修复。
+- **Fix (I1/U1)**: SKILL.md body 版本号 `1.3.0` 与 frontmatter `1.3.2` 不一致 → 统一为 `1.3.3`。
+- **Fix (L1/C1)**: 删除 `NODE_BIN`/`NODE_PATH` 死代码（硬编码用户路径 `/Users/songhonglei/...`，全文件无引用）。
+- **Fix (L2)**: 清理 `build_svg()` 中废弃的 `gradient_defs`/`gradient_id` 逻辑（SVG 侧渐变从未生效，实际由 CSS 处理）。
+- **Fix (U2)**: 删除 4 个 `--show-*` 无操作 CLI 标志（`action="store_true", default=True` 永远为 True），只保留 `--hide-*`。
+- **Fix (U3)**: Dependencies 表新增 Google Chrome / Chromium 依赖声明。
+- **Fix (I2)**: 删除过期审计报告 `AUDIT-2026-07-31.md`（引用 v1.1.0，未被 SKILL.md 引用）。
+- **Fix (I3)**: 删除 `__pycache__/` 构建产物。
+- **Fix (C2)**: `render_png()` 改用 `try/finally` 确保临时 HTML 文件在 Chrome 崩溃时也能清理。
+- **Fix (audit 模块6)**: 本地 skill 目录补齐 `README.md` 和 `LICENSE`（从 GitHub 仓库同步）。
+- **Known**: I4 frontmatter 额外字段 (`version`/`bins`/`metadata`) 保留——ClawHub 发布需要，strict YAML 解析器可能报 warning 但不影响功能。
+
 ### v1.3.2 (2026-07-31)
 
 - **Fix**: `doodle` theme font now uses **ZCOOL KuaiLe** (站酷快乐体) from Google Fonts — a playful, rounded Chinese display font that matches the hand-drawn doodle decorations. Previously Caveat/Permanent Marker are Latin-only and silently fell back to system Songti/PingFang, which broke the playful style.

@@ -1,6 +1,6 @@
 ---
 name: xhs-image-note-release
-version: 1.3.2
+version: 1.3.3
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
   话题标签、发布等全流程。核心解决了小红书发布按钮封装在 closed Shadow DOM 中无法点击的问题。
@@ -17,7 +17,7 @@ metadata:
         - BODY
 ---
 
-- **Version**: 1.3.0
+- **Version**: 1.3.3
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
@@ -35,6 +35,7 @@ metadata:
 | **ego-browser** (ego-lite) | CLI 工具 + Skill | 浏览器自动化引擎，提供 CDP、snapshot、fillInput 等 API | 参考 [ego-browser skill](https://github.com/Songhonglei/better-office-work-flow) 安装 | `ego-browser --version` 能正常输出版本号 |
 | **小红书账号** | 平台账号 | 需在 ego-lite 浏览器中已登录小红书 | 手动在 ego-lite 中登录 creator.xiaohongshu.com | 打开创作平台能看到发布按钮 |
 | **WorkBuddy 沙箱** | 环境配置 | 沙箱模式会 SIGKILL ego-browser 进程（exit 137） | WorkBuddy 设置 → 关闭沙箱 | 运行 `ego-browser --version` 不报 sandbox 错误 |
+| **Google Chrome / Chromium** | 系统浏览器 | 卡片生成器 (`card_generator.py`) 使用 Chrome headless 渲染 PNG | macOS: 从 [google.com/chrome](https://www.google.com/chrome/) 安装；Linux: `apt install chromium-browser` | 终端运行 `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version` 或 `chromium --version` |
 
 > **ego-browser API**：本技能代码中使用的 `useOrCreateTaskSpace`、`openOrReuseTab`、`snapshotText`、`click`、`fillInput`、`typeText`、`pressKey`、`cdp`、`js`、`pageInfo`、`completeTaskSpace`、`captureScreenshot`、`wait`、`waitForNetworkIdle`、`cliLog` 均为 ego-browser 提供的 API，需先 `Skill("ego-browser")` 加载后使用。
 

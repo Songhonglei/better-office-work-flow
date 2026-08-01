@@ -20,8 +20,6 @@ import argparse
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-NODE_BIN = "/Users/songhonglei/.workbuddy/binaries/node/versions/22.22.2/bin/node"
-NODE_PATH = "/Users/songhonglei/.workbuddy/binaries/node/workspace/node_modules"
 CHROME_CANDIDATES = [
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     "/Applications/Chromium.app/Contents/MacOS/Chromium",
@@ -505,14 +503,9 @@ def build_svg(theme, width, height, content, options):
     text_block_h = len(lines) * line_height
     start_y = (height - text_block_h) / 2 - 20
 
-    # 背景
+    # 背景（渐变由 build_html 的 CSS 处理，SVG 侧用纯色）
     bg_style = f"fill: {t['bg']}"
     bg_rect = f'<rect width="{width}" height="{height}" style="{bg_style}"/>'
-    gradient_defs = ""
-    if t["bg_gradient"]:
-        gradient_id = "bgGrad"
-        # 简化为直接用 CSS gradient on rect
-        bg_rect = f'<rect width="{width}" height="{height}" style="fill: {t['bg']}"/>'
 
     # 装饰元素
     decorations = build_decorations(theme, width, height, t)
@@ -572,7 +565,6 @@ def build_svg(theme, width, height, content, options):
     # 组合
     svg_parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        f'<defs>{gradient_defs}</defs>',
         bg_rect,
     ]
     svg_parts.extend(decorations)
@@ -845,33 +837,35 @@ def render_png(html_content, output_path, width=1080, height=1440):
     tmp_html.write(html_content)
     tmp_html.close()
 
-    chrome = find_chrome()
-    if not chrome:
-        print("[ERROR] 未找到 Chrome/Chromium", file=sys.stderr)
-        return False
+    try:
+        chrome = find_chrome()
+        if not chrome:
+            print("[ERROR] 未找到 Chrome/Chromium", file=sys.stderr)
+            return False
 
-    # 直接用 Chrome screenshot
-    cmd = [
-        chrome,
-        "--headless",
-        "--disable-gpu",
-        "--no-sandbox",
-        "--hide-scrollbars",
-        "--force-device-scale-factor=1",
-        "--virtual-time-budget=10000",
-        f"--window-size={width},{height}",
-        "--screenshot=" + os.path.abspath(output_path),
-        "file://" + tmp_html.name,
-    ]
+        # 直接用 Chrome screenshot
+        cmd = [
+            chrome,
+            "--headless",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--hide-scrollbars",
+            "--force-device-scale-factor=1",
+            "--virtual-time-budget=10000",
+            f"--window-size={width},{height}",
+            "--screenshot=" + os.path.abspath(output_path),
+            "file://" + tmp_html.name,
+        ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    os.unlink(tmp_html.name)
+        result = subprocess.run(cmd, capture_output=True, text=True)
 
-    if result.returncode != 0:
-        print(f"[ERROR] 渲染失败: {result.stderr}", file=sys.stderr)
-        return False
+        if result.returncode != 0:
+            print(f"[ERROR] 渲染失败: {result.stderr}", file=sys.stderr)
+            return False
 
-    return True
+        return True
+    finally:
+        os.unlink(tmp_html.name)
 
 
 # ─── Demo 内容 ─────────────────────────────────────────────────────
@@ -910,13 +904,9 @@ def main():
     parser.add_argument("--page-number", type=int, help="当前页码")
     parser.add_argument("--total-pages", type=int, help="总页数")
     parser.add_argument("--account", help="账号名")
-    parser.add_argument("--show-tag", action="store_true", default=True, help="显示顶部标签")
     parser.add_argument("--hide-tag", action="store_true", help="隐藏顶部标签")
-    parser.add_argument("--show-subtitle", action="store_true", default=True, help="显示副标题")
     parser.add_argument("--hide-subtitle", action="store_true", help="隐藏副标题")
-    parser.add_argument("--show-page-number", action="store_true", default=True, help="显示页码")
     parser.add_argument("--hide-page-number", action="store_true", help="隐藏页码")
-    parser.add_argument("--show-account", action="store_true", default=True, help="显示账号")
     parser.add_argument("--hide-account", action="store_true", help="隐藏账号")
     parser.add_argument("--width", type=int, default=1080, help="输出宽度")
     parser.add_argument("--height", type=int, default=1440, help="输出高度")
@@ -953,12 +943,12 @@ def main():
     content.setdefault("total_pages", 1)
     content.setdefault("account", "")
 
-    # 显示选项
+    # 显示选项（默认全显示，--hide-* 隐藏）
     options = {
-        "show_tag": not args.hide_tag if args.hide_tag else args.show_tag,
-        "show_subtitle": not args.hide_subtitle if args.hide_subtitle else args.show_subtitle,
-        "show_page_number": not args.hide_page_number if args.hide_page_number else args.show_page_number,
-        "show_account": not args.hide_account if args.hide_account else args.show_account,
+        "show_tag": not args.hide_tag,
+        "show_subtitle": not args.hide_subtitle,
+        "show_page_number": not args.hide_page_number,
+        "show_account": not args.hide_account,
     }
 
     if args.all_themes:
