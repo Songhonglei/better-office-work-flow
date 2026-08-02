@@ -1,16 +1,17 @@
 # xhs-image-note-release
 
-> 通过 ego-browser 自动化发布小红书图文笔记：全流程一键自动发布、25 种多样式风格卡片、卡片参数自由配置。
+> 通过 ego-browser 自动化发布小红书图文笔记：全流程一键自动发布、28 种多样式风格卡片（含照片背景氛围主题）、卡片参数自由配置。
 
 ## Features
 
 - **全自动发布**：打开创作平台 → 上传图片 → 填标题/正文/话题 → 发布 → 清理，全流程一键完成
-- **25 种多样式风格**：内置卡片生成器，涵盖温暖哲思、Y2K、蒸汽朋克、水墨、故宫金红等风格，统一小红书金句卡布局
-- **卡片高度可配置**：主题 / 布局 / 插画 / 标签 / 署名 / 页码等参数自由组合，支持纯文字与图文两种布局
+- **28 种多样式风格**：内置卡片生成器，涵盖温暖哲思、Y2K、蒸汽朋克、水墨、故宫金红、暗色电影感、胶片颗粒、书页氛围等风格，统一小红书金句卡布局
+- **照片背景支持**（v1.5.0）：满幅照片底图 + 暗色遮罩 + 模糊 + 降饱和 + 胶片颗粒，3 种预设氛围主题 + 任意现有主题自动亮色反转
+- **卡片高度可配置**：主题 / 布局 / 背景 / 遮罩强度 / 模糊 / 颗粒 / 标签 / 署名 / 页码等参数自由组合，支持纯文字与图文两种布局
 - **一键发布脚本**：修改 4 个参数即可复用，无需重复操作
 - 附带完整技术文档，含使用指引与排查参考
 
-## Card Themes (25)
+## Card Themes (28)
 
 所有主题共用同一套**纯文字布局**（顶部标签 + 引号 / 中间大字 / 底部副标题 + 页码 + 账号），改布局一次全生效。另有 `warm_illust` 主题适配**图文布局**（顶部简笔画 + 窄列居中文字 + 底部署名）。
 
@@ -55,6 +56,11 @@
 <td align="center"><img src="assets/themes/carbon.jpg" width="230"><br><code>carbon</code><br>暗色极简</td>
 <td align="center"><img src="assets/themes/vivid.jpg" width="230"><br><code>vivid</code><br>活力渐变</td>
 </tr>
+<tr>
+<td align="center"><img src="assets/themes/cinematic.jpg" width="230"><br><code>cinematic</code><br>暗色电影感</td>
+<td align="center"><img src="assets/themes/film.jpg" width="230"><br><code>film</code><br>胶片颗粒</td>
+<td align="center"><img src="assets/themes/journal.jpg" width="230"><br><code>journal</code><br>书页氛围</td>
+</tr>
 </table>
 
 ```bash
@@ -77,8 +83,24 @@ python3 references/card-generator/card_generator.py \
   --account "@雨夜心灯" \
   -o illust-card.png
 
-# 查看全部主题清单
+# 查看全部主题清单（28 种）
 python3 references/card-generator/card_generator.py --list-themes
+
+# 照片背景卡片（v1.5.0）：满幅照片 + 暗色遮罩 + 文字投影
+python3 references/card-generator/card_generator.py \
+  --theme cinematic \
+  --background ./bg_photo.png \
+  --lines "说得着，一句顶一万句；\n说不着，万句皆是多余。" \
+  --account "@雨夜心灯" \
+  -o photo_card.png
+
+# 高级：自定义遮罩、模糊、降饱和、颗粒
+python3 references/card-generator/card_generator.py \
+  --theme film \
+  --background ./bg_photo.png \
+  --scrim 0.6 --blur 3 --desaturate 0.7 --grain 0.08 \
+  --lines "文案内容" \
+  -o custom_photo_card.png
 ```
 
 ## Dependencies

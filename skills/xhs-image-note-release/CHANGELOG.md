@@ -3,6 +3,35 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.5.2 (2026-08-02)
+
+- **Fix**: `card_generator.py` 的 `image-text` 布局 footer 不再固定 `height * 0.82`，而是根据文字块实际底部动态计算，避免账号署名和装饰横线与正文最后一行重叠。
+- **Fix**: 卡片底部署名统一为 `@雨夜心灯` 格式。
+
+### v1.5.1 (2026-08-02)
+
+- **Fix**: 话题标签改为从下拉列表真实选中，而非直接粘贴纯文本 `#话题`。
+  - `scripts/publish_note.sh` 新增 `TOPICS` 参数（逗号分隔，不带 `#`）。
+  - 发布流程：输入正文 → 逐个输入 `#话题` 触发建议下拉 → 点击匹配项（优先精确匹配，否则选首个）→ 完成真正的话题挂载。
+  - SKILL.md 同步更新「填写正文与话题标签」章节，说明为什么不能直接粘贴 `#话题`。
+
+### v1.5.0 (2026-08-01)
+
+- **Feature**: 新增**照片背景卡片**功能——支持满幅照片作为底图，文字压在图片上，带暗色遮罩、模糊、降饱和、胶片颗粒等效果。
+- **3 个照片氛围主题**：`cinematic`（暗色电影感）、`film`（胶片颗粒）、`journal`（书页氛围）。每个主题预设遮罩强度、颜色、颗粒和降饱和参数。
+- **New CLI args**:
+  - `--background PATH` — 满幅背景照片路径（`.png`/`.jpg`/`.webp`），自动 center-crop 铺满
+  - `--scrim FLOAT` — 暗色遮罩强度 `0–0.92`（默认取主题预设）
+  - `--blur FLOAT` — 背景高斯模糊半径（默认 `0`）
+  - `--desaturate [FLOAT]` — 背景降饱和 `0–1`；不带值时取 `0.65`
+  - `--grain FLOAT` — 胶片颗粒强度 `0–0.4`
+- **Auto bright-text reversal**: 非照片主题传入 `--background` 时，文字/辅助色自动反转为亮色，无需手动切换主题。
+- **Photo layer stack**: SVG 底层新增 defs（滤镜 + 渐变）→ 照片 image → 暗色渐变遮罩 → 可选颗粒 → 前景投影组。背景图 base64 内嵌，与插画加载逻辑一致。
+- **Text shadow filter**: 照片背景下整组前景元素统一加 `feDropShadow` 投影，保证任意画面上文字清晰可读。
+- **Scrim gradient**: 暗色遮罩使用线性渐变（上下两端更重），保护顶部标签和底部页脚在亮区照片上仍可读。
+- **Total themes**: **28**（25 纯色/渐变 + 3 照片背景）。
+- **Docs**: SKILL.md 新增「照片背景卡片」完整章节：工作原理图解、三种主题对比表、CLI 用法示例、Agent 工作流模板。
+
 ### v1.4.0 (2026-08-01)
 
 - **Feature**: 新增「图文卡片」布局（`--layout image-text`），与现有「纯文字」布局（`--layout text`，默认）并列可选。
@@ -20,7 +49,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 
 - **Audit Fix**: UGLIC + skill-release-audit 两轮审计发现的全部 ERR/WARN 修复。
 - **Fix (I1/U1)**: SKILL.md body 版本号 `1.3.0` 与 frontmatter `1.3.2` 不一致 → 统一为 `1.3.3`。
-- **Fix (L1/C1)**: 删除 `NODE_BIN`/`NODE_PATH` 死代码（硬编码用户路径 `/Users/songhonglei/...`，全文件无引用）。
+- **Fix (L1/C1)**: 删除 `NODE_BIN`/`NODE_PATH` 死代码（硬编码的用户 home 路径，全文件无引用）。
 - **Fix (L2)**: 清理 `build_svg()` 中废弃的 `gradient_defs`/`gradient_id` 逻辑（SVG 侧渐变从未生效，实际由 CSS 处理）。
 - **Fix (U2)**: 删除 4 个 `--show-*` 无操作 CLI 标志（`action="store_true", default=True` 永远为 True），只保留 `--hide-*`。
 - **Fix (U3)**: Dependencies 表新增 Google Chrome / Chromium 依赖声明。

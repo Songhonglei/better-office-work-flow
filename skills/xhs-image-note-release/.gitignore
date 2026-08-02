@@ -1,51 +1,15 @@
-# ─── Sensitive credentials (never commit) ─────
-*.key
-!*.public.key
-id_rsa
-id_rsa.*
-id_ed25519
-id_ed25519.*
-*.pem
-*.p12
-*.pfx
-*.keystore
-**/certs/*.key
-**/secrets/
-.env
-.env.*
-!.env.example
-*.token
-*token*.json
-.secrets/
-
-# ─── OS / Editor ─────
-.DS_Store
-Thumbs.db
-*.swp
-*~
-.idea/
-.vscode/
-
-# ─── Language artifacts ─────
+# Python
 __pycache__/
 *.pyc
 *.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
+
+# Node
 node_modules/
-*.log
-dist/
-build/
 
-# ─── Skill runtime cache ─────
+# Runtime / temp artifacts (recreated at install/runtime)
 .skill-data/
-.cache/
-tmp/
-output/
+*.install-source.json
+__skill_meta__.json
 
-# ─── AI agent internal ─────
-sign.key
-.install-source.json
-skill_meta.json
-*.json.md
+# OS
+.DS_Store

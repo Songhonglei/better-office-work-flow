@@ -66,6 +66,68 @@ THEMES = {
         "letter_spacing": 3,
         "google_fonts": [],
     },
+    # ── 照片背景风格（需配合 --background 使用） ──────────────
+    # 这三个主题不自带素材，背景图由用户提供或 AI 生成后通过 --background 传入
+    "cinematic": {
+        "name": "暗色电影感",
+        "bg": "#0C0C0E",
+        "bg_gradient": None,
+        "text": "#F5F1E8",
+        "muted": "#C9C2B6",
+        "accent": "#D9B47A",
+        "accent2": "#6E655A",
+        "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
+        "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "quote_color": "#D9B47A",
+        "deco": "none",
+        "letter_spacing": 5,
+        "google_fonts": [],
+        "photo": True,
+        "scrim": 0.55,
+        "scrim_color": "#000000",
+        "grain": 0.0,
+        "desaturate": 1.0,
+    },
+    "film": {
+        "name": "胶片颗粒",
+        "bg": "#14110E",
+        "bg_gradient": None,
+        "text": "#EFE9DE",
+        "muted": "#BDB3A4",
+        "accent": "#C8783C",
+        "accent2": "#6B5B4A",
+        "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
+        "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "quote_color": "#C8783C",
+        "deco": "none",
+        "letter_spacing": 4,
+        "google_fonts": [],
+        "photo": True,
+        "scrim": 0.5,
+        "scrim_color": "#100B06",
+        "grain": 0.09,
+        "desaturate": 0.72,
+    },
+    "journal": {
+        "name": "书页氛围",
+        "bg": "#17110A",
+        "bg_gradient": None,
+        "text": "#F3E9D6",
+        "muted": "#C4B49A",
+        "accent": "#C9A227",
+        "accent2": "#7A6A50",
+        "font_main": "'Songti SC', 'STSong', 'SimSun', 'Noto Serif SC', serif",
+        "font_tag": "'PingFang SC', 'Microsoft YaHei', sans-serif",
+        "quote_color": "#C9A227",
+        "deco": "none",
+        "letter_spacing": 6,
+        "google_fonts": [],
+        "photo": True,
+        "scrim": 0.52,
+        "scrim_color": "#1A120B",
+        "grain": 0.04,
+        "desaturate": 0.9,
+    },
     # ── 年轻人风格（新增，非仓库原始） ────────────────────────
     "y2k": {
         "name": "Y2K 千禧潮酷",
@@ -499,9 +561,137 @@ def compute_font_size(lines, width, height, theme, text_width_ratio=0.78):
     return min_size
 
 
+# ─── 照片背景 ──────────────────────────────────────────────────────
+
+def load_background(path):
+    """加载背景照片并转 base64 data URI（内嵌进 SVG，避免 file:// 被拦截）"""
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"背景图不存在: {path}")
+    ext = p.suffix.lower()
+    mimes = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
+    if ext not in mimes:
+        raise ValueError(f"不支持的背景图格式: {ext}（请用 .png / .jpg / .webp）")
+    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+    return f"data:{mimes[ext]};base64,{b64}"
+
+
+def resolve_theme(theme_key, options):
+    """返回主题配置副本。当传入 --background 但主题非照片主题时，
+    自动把文字/辅助色反转为亮色，保证压在照片上仍可读。"""
+    t = dict(THEMES[theme_key])
+    if not options.get("background"):
+        return t
+    if t.get("photo"):
+        return t
+    # 非照片主题 + 照片背景 → 自动亮色反转
+    t["text"] = "#F7F4EE"
+    t["muted"] = "#D5CFC5"
+    t["accent2"] = "#8A8278"
+    t["bg_gradient"] = None
+    t["deco"] = "none"
+    t.setdefault("scrim", 0.55)
+    t.setdefault("scrim_color", "#000000")
+    t.setdefault("grain", 0.0)
+    t.setdefault("desaturate", 1.0)
+    t["photo"] = True
+    return t
+
+
+def build_photo_layers(width, height, options, t):
+    """构建照片背景图层：defs（滤镜/渐变） + 照片 + 暗色遮罩 + 可选颗粒。
+    返回 svg 片段列表，需插入在正文内容之前。"""
+    bg_uri = options.get("background")
+    if not bg_uri:
+        return []
+
+    scrim = options.get("scrim")
+    if scrim is None:
+        scrim = t.get("scrim", 0.55)
+    scrim = max(0.0, min(0.92, float(scrim)))
+    scrim_color = t.get("scrim_color", "#000000")
+
+    blur = float(options.get("blur") or 0)
+    desaturate = options.get("desaturate")
+    if desaturate is None:
+        desaturate = t.get("desaturate", 1.0)
+    desaturate = max(0.0, min(1.0, float(desaturate)))
+
+    grain = options.get("grain")
+    if grain is None:
+        grain = t.get("grain", 0.0)
+    grain = max(0.0, min(0.4, float(grain)))
+
+    defs = []
+    # 照片滤镜：模糊 + 降饱和
+    fx_nodes = []
+    if blur > 0:
+        fx_nodes.append(f'<feGaussianBlur stdDeviation="{blur}"/>')
+    if desaturate < 1.0:
+        fx_nodes.append(f'<feColorMatrix type="saturate" values="{desaturate:.3f}"/>')
+    photo_filter_attr = ""
+    if fx_nodes:
+        defs.append(
+            f'<filter id="photoFx" x="-15%" y="-15%" width="130%" height="130%" '
+            f'color-interpolation-filters="sRGB">{"".join(fx_nodes)}</filter>'
+        )
+        photo_filter_attr = ' filter="url(#photoFx)"'
+
+    # 暗色遮罩渐变：上下两端更重（压住标签与页脚），中段维持基准强度
+    top = min(0.95, scrim + 0.16)
+    bottom = min(0.95, scrim + 0.20)
+    defs.append(
+        f'<linearGradient id="scrimGrad" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="{scrim_color}" stop-opacity="{top:.3f}"/>'
+        f'<stop offset="30%" stop-color="{scrim_color}" stop-opacity="{scrim:.3f}"/>'
+        f'<stop offset="70%" stop-color="{scrim_color}" stop-opacity="{scrim:.3f}"/>'
+        f'<stop offset="100%" stop-color="{scrim_color}" stop-opacity="{bottom:.3f}"/>'
+        f'</linearGradient>'
+    )
+
+    # 文字投影：照片背景下保证边缘清晰
+    defs.append(
+        '<filter id="txtShadow" x="-25%" y="-25%" width="150%" height="150%" '
+        'color-interpolation-filters="sRGB">'
+        '<feDropShadow dx="0" dy="2" stdDeviation="7" flood-color="#000000" flood-opacity="0.6"/>'
+        '</filter>'
+    )
+
+    if grain > 0:
+        defs.append(
+            '<filter id="grainFx" x="0" y="0" width="100%" height="100%">'
+            '<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/>'
+            '<feColorMatrix type="saturate" values="0"/>'
+            '</filter>'
+        )
+
+    layers = [f'<defs>{"".join(defs)}</defs>']
+
+    # 照片：slice 等价于 center-crop；模糊时向外扩边，避免边缘透出底色
+    pad = int(blur * 3) if blur > 0 else 0
+    layers.append(
+        f'<image x="{-pad}" y="{-pad}" width="{width + pad * 2}" height="{height + pad * 2}" '
+        f'href="{bg_uri}" preserveAspectRatio="xMidYMid slice"{photo_filter_attr}/>'
+    )
+    layers.append(f'<rect width="{width}" height="{height}" fill="url(#scrimGrad)"/>')
+
+    if grain > 0:
+        layers.append(
+            f'<rect width="{width}" height="{height}" filter="url(#grainFx)" '
+            f'opacity="{grain:.3f}" style="mix-blend-mode: overlay"/>'
+        )
+
+    return layers
+
+
 def build_svg(theme, width, height, content, options):
     """生成统一布局的 SVG"""
-    t = THEMES[theme]
+    t = resolve_theme(theme, options)
     tag = content.get("tag", "人生随笔")
     lines = content.get("lines", ["未命名卡片"])
     subtitle = content.get("subtitle", "")
@@ -533,9 +723,9 @@ def build_svg(theme, width, height, content, options):
     tag_y = 130
     tag_parts = []
     if show_tag and tag:
-        quote_left = f'<text x="{width/2 - 70}" y="{tag_y}" text-anchor="end" font-size="28" fill="{t['quote_color']}" font-family="{t['font_tag']}">"</text>'
-        tag_text = f'<text x="{width/2}" y="{tag_y}" text-anchor="middle" font-size="24" fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="6">{escape(tag)}</text>'
-        quote_right = f'<text x="{width/2 + 70}" y="{tag_y}" text-anchor="start" font-size="28" fill="{t['quote_color']}" font-family="{t['font_tag']}">"</text>'
+        quote_left = f'<text x="{width/2 - 70}" y="{tag_y}" text-anchor="end" font-size="28" fill="{t["quote_color"]}" font-family="{t["font_tag"]}">"</text>'
+        tag_text = f'<text x="{width/2}" y="{tag_y}" text-anchor="middle" font-size="24" fill="{t["muted"]}" font-family="{t["font_tag"]}" letter-spacing="6">{escape(tag)}</text>'
+        quote_right = f'<text x="{width/2 + 70}" y="{tag_y}" text-anchor="start" font-size="28" fill="{t["quote_color"]}" font-family="{t["font_tag"]}">"</text>'
         tag_parts = [quote_left, tag_text, quote_right]
 
     # 主文案
@@ -546,7 +736,7 @@ def build_svg(theme, width, height, content, options):
         weight = "500" if len(lines) <= 2 else "400"
         text_parts.append(
             f'<text x="{width/2}" y="{y}" text-anchor="middle" font-size="{font_size}" '
-            f'fill="{t['text']}" font-family="{t['font_main']}" font-weight="{weight}" '
+            f'fill="{t["text"]}" font-family="{t["font_main"]}" font-weight="{weight}" '
             f'letter-spacing="{letter_spacing}">{escape(line)}</text>'
         )
 
@@ -556,14 +746,14 @@ def build_svg(theme, width, height, content, options):
     if show_subtitle and subtitle:
         subtitle_parts.append(
             f'<text x="{width/2}" y="{subtitle_y}" text-anchor="middle" font-size="26" '
-            f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="3">— {escape(subtitle)} —</text>'
+            f'fill="{t["muted"]}" font-family="{t["font_tag"]}" letter-spacing="3">— {escape(subtitle)} —</text>'
         )
 
     # 底部分隔线
     footer_y = height - 130
     footer_parts = [
         f'<line x1="{width * 0.1}" y1="{footer_y - 30}" x2="{width * 0.9}" y2="{footer_y - 30}" '
-        f'stroke="{t['accent2']}" stroke-width="1"/>'
+        f'stroke="{t["accent2"]}" stroke-width="1"/>'
     ]
 
     # 页码
@@ -571,14 +761,14 @@ def build_svg(theme, width, height, content, options):
         page_text = f"No.{page_number:02d} / {total_pages:02d}"
         footer_parts.append(
             f'<text x="{width * 0.1}" y="{footer_y + 18}" text-anchor="start" font-size="22" '
-            f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="1">{page_text}</text>'
+            f'fill="{t["muted"]}" font-family="{t["font_tag"]}" letter-spacing="1">{page_text}</text>'
         )
 
     # 账号
     if show_account and account:
         footer_parts.append(
             f'<text x="{width * 0.9}" y="{footer_y + 18}" text-anchor="end" font-size="22" '
-            f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="1">{escape(account)}</text>'
+            f'fill="{t["muted"]}" font-family="{t["font_tag"]}" letter-spacing="1">{escape(account)}</text>'
         )
 
     # 组合
@@ -586,11 +776,24 @@ def build_svg(theme, width, height, content, options):
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         bg_rect,
     ]
+    photo_layers = build_photo_layers(width, height, options, t)
+    svg_parts.extend(photo_layers)
     svg_parts.extend(decorations)
-    svg_parts.extend(tag_parts)
-    svg_parts.extend(text_parts)
-    svg_parts.extend(subtitle_parts)
-    svg_parts.extend(footer_parts)
+
+    foreground = []
+    foreground.extend(tag_parts)
+    foreground.extend(text_parts)
+    foreground.extend(subtitle_parts)
+    foreground.extend(footer_parts)
+
+    if photo_layers:
+        # 照片背景下整组前景加投影，保证文字在任意画面上都清晰
+        svg_parts.append('<g filter="url(#txtShadow)">')
+        svg_parts.extend(foreground)
+        svg_parts.append('</g>')
+    else:
+        svg_parts.extend(foreground)
+
     svg_parts.append('</svg>')
 
     return "\n".join(svg_parts)
@@ -635,7 +838,7 @@ def load_illustration(path):
 
 def build_image_text_svg(theme, width, height, content, options, illustration):
     """生成「图文卡片」布局：顶部插画 + 窄列居中文字 + 底部署名"""
-    t = THEMES[theme]
+    t = resolve_theme(theme, options)
     lines = content.get("lines", ["未命名卡片"])
     account = content.get("account", "")
     text_width_ratio = options.get("text_width_ratio", 0.65)
@@ -649,7 +852,10 @@ def build_image_text_svg(theme, width, height, content, options, illustration):
     # 布局比例（以 1080x1440 为基准，按高度缩放）
     illustration_y = int(height * 0.28)
     text_start_y = int(height * 0.54)
-    footer_y = int(height * 0.82)
+    # footer_y 固定基准，但需保证不压到文字（文字实际底部 + 安全间距）
+    last_line_baseline = text_start_y + (len(lines) - 1) * line_height + font_size * 0.85
+    text_block_bottom = last_line_baseline + font_size * 0.25
+    footer_y = max(int(height * 0.82), int(text_block_bottom + 50))
 
     illust_type, illust_payload = illustration
     if illust_type == "svg_inner":
@@ -672,7 +878,7 @@ def build_image_text_svg(theme, width, height, content, options, illustration):
         y = text_start_y + i * line_height + font_size * 0.85
         text_parts.append(
             f'<text x="{width/2}" y="{y}" text-anchor="middle" font-size="{font_size}" '
-            f'fill="{t['text']}" font-family="{t['font_main']}" font-weight="400" '
+            f'fill="{t["text"]}" font-family="{t["font_main"]}" font-weight="400" '
             f'letter-spacing="{letter_spacing}">{escape(line)}</text>'
         )
 
@@ -682,23 +888,33 @@ def build_image_text_svg(theme, width, height, content, options, illustration):
         line_x2 = width * 0.58
         footer_parts.append(
             f'<line x1="{line_x1}" y1="{footer_y}" x2="{line_x2}" y2="{footer_y}" '
-            f'stroke="{t['accent']}" stroke-width="2"/>'
+            f'stroke="{t["accent"]}" stroke-width="2"/>'
         )
         footer_parts.append(
             f'<text x="{width/2}" y="{footer_y + 40}" text-anchor="middle" font-size="22" '
-            f'fill="{t['muted']}" font-family="{t['font_tag']}" letter-spacing="6">{escape(account)}</text>'
+            f'fill="{t["muted"]}" font-family="{t["font_tag"]}" letter-spacing="6">{escape(account)}</text>'
         )
 
     decorations = build_decorations(theme, width, height, t)
 
     svg_parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-        f'<rect width="{width}" height="{height}" fill="{t['bg']}"/>',
+        f'<rect width="{width}" height="{height}" fill="{t["bg"]}"/>',
     ]
+    photo_layers = build_photo_layers(width, height, options, t)
+    svg_parts.extend(photo_layers)
     svg_parts.extend(decorations)
+
+    # 插画独立于阴影组之外：投影只服务于压在照片上的文字，不应作用于插画本身
     svg_parts.append(illustration_block)
-    svg_parts.extend(text_parts)
-    svg_parts.extend(footer_parts)
+    foreground = text_parts + footer_parts
+    if photo_layers:
+        svg_parts.append('<g filter="url(#txtShadow)">')
+        svg_parts.extend(foreground)
+        svg_parts.append('</g>')
+    else:
+        svg_parts.extend(foreground)
+
     svg_parts.append('</svg>')
 
     return "\n".join(svg_parts)
@@ -711,15 +927,15 @@ def build_decorations(theme, width, height, t):
 
     if deco == "stars" or theme == "y2k":
         # Y2K 星星和十字装饰
-        decos.append(f'<polygon points="{width-120},80 {width-115},95 {width-100},100 {width-115},105 {width-120},120 {width-125},105 {width-140},100 {width-125},95" fill="{t['accent2']}" opacity="0.8"/>')
-        decos.append(f'<polygon points="120,180 125,195 140,200 125,205 120,220 115,205 100,200 115,195" fill="{t['accent']}" opacity="0.7"/>')
-        decos.append(f'<text x="{width-90}" y="{height-160}" font-size="48" fill="{t['accent']}" opacity="0.5">✦</text>')
-        decos.append(f'<text x="90" y="{height-140}" font-size="36" fill="{t['accent2']}" opacity="0.5">✦</text>')
+        decos.append(f'<polygon points="{width-120},80 {width-115},95 {width-100},100 {width-115},105 {width-120},120 {width-125},105 {width-140},100 {width-125},95" fill="{t["accent2"]}" opacity="0.8"/>')
+        decos.append(f'<polygon points="120,180 125,195 140,200 125,205 120,220 115,205 100,200 115,195" fill="{t["accent"]}" opacity="0.7"/>')
+        decos.append(f'<text x="{width-90}" y="{height-160}" font-size="48" fill="{t["accent"]}" opacity="0.5">✦</text>')
+        decos.append(f'<text x="90" y="{height-140}" font-size="36" fill="{t["accent2"]}" opacity="0.5">✦</text>')
     elif deco == "doodles" or theme == "doodle":
-        decos.append(f'<path d="M {width-140},70 Q {width-120},90 {width-140},110 Q {width-160},90 {width-140},70" fill="none" stroke="{t['accent']}" stroke-width="3" stroke-linecap="round"/>')
-        decos.append(f'<path d="M 110,120 L 130,140 M 130,120 L 110,140" stroke="{t['accent2']}" stroke-width="4" stroke-linecap="round"/>')
-        decos.append(f'<circle cx="{width-100}" cy="{height-140}" r="8" fill="none" stroke="{t['accent']}" stroke-width="3"/>')
-        decos.append(f'<path d="M 90,{height-130} Q 110,{height-150} 130,{height-130}" fill="none" stroke="{t['accent2']}" stroke-width="3" stroke-linecap="round"/>')
+        decos.append(f'<path d="M {width-140},70 Q {width-120},90 {width-140},110 Q {width-160},90 {width-140},70" fill="none" stroke="{t["accent"]}" stroke-width="3" stroke-linecap="round"/>')
+        decos.append(f'<path d="M 110,120 L 130,140 M 130,120 L 110,140" stroke="{t["accent2"]}" stroke-width="4" stroke-linecap="round"/>')
+        decos.append(f'<circle cx="{width-100}" cy="{height-140}" r="8" fill="none" stroke="{t["accent"]}" stroke-width="3"/>')
+        decos.append(f'<path d="M 90,{height-130} Q 110,{height-150} 130,{height-130}" fill="none" stroke="{t["accent2"]}" stroke-width="3" stroke-linecap="round"/>')
     elif deco == "dots" or theme == "pop":
         for cx, cy, r, color in [
             (width - 100, 100, 18, t["accent"]),
@@ -730,22 +946,22 @@ def build_decorations(theme, width, height, t):
         ]:
             decos.append(f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}" opacity="0.85"/>')
     elif deco == "warm" or theme == "warm":
-        decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t['accent']}" opacity="0.5"/>')
-        decos.append(f'<circle cx="{width-110}" cy="110" r="2" fill="{t['accent']}" opacity="0.4"/>')
-        decos.append(f'<circle cx="90" cy="{height-100}" r="3" fill="{t['accent']}" opacity="0.5"/>')
+        decos.append(f'<circle cx="{width-90}" cy="90" r="3" fill="{t["accent"]}" opacity="0.5"/>')
+        decos.append(f'<circle cx="{width-110}" cy="110" r="2" fill="{t["accent"]}" opacity="0.4"/>')
+        decos.append(f'<circle cx="90" cy="{height-100}" r="3" fill="{t["accent"]}" opacity="0.5"/>')
     elif deco == "warm_illust" or theme == "warm_illust":
         # 温暖简笔哲思：极淡琥珀色光晕 + 小点，不抢插画风头
-        decos.append(f'<circle cx="{width-120}" cy="120" r="4" fill="{t['accent']}" opacity="0.25"/>')
-        decos.append(f'<circle cx="{width-145}" cy="145" r="2.5" fill="{t['accent']}" opacity="0.18"/>')
-        decos.append(f'<circle cx="120" cy="{height-120}" r="3" fill="{t['accent']}" opacity="0.22"/>')
+        decos.append(f'<circle cx="{width-120}" cy="120" r="4" fill="{t["accent"]}" opacity="0.25"/>')
+        decos.append(f'<circle cx="{width-145}" cy="145" r="2.5" fill="{t["accent"]}" opacity="0.18"/>')
+        decos.append(f'<circle cx="120" cy="{height-120}" r="3" fill="{t["accent"]}" opacity="0.22"/>')
     elif deco == "palace" or theme == "palace":
         seal_x, seal_y, seal_r = width - 100, 100, 28
-        decos.append(f'<rect x="{seal_x - seal_r}" y="{seal_y - seal_r}" width="{seal_r * 2}" height="{seal_r * 2}" fill="{t['accent2']}" opacity="0.85" rx="3"/>')
-        decos.append(f'<text x="{seal_x}" y="{seal_y + 8}" text-anchor="middle" font-size="22" fill="{t['accent']}" font-family="{t['font_main']}">印</text>')
-        decos.append(f'<path d="M 40,40 L 80,40 M 40,40 L 40,80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
-        decos.append(f'<path d="M {width-40},40 L {width-80},40 M {width-40},40 L {width-40},80" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
-        decos.append(f'<path d="M 40,{height-40} L 80,{height-40} M 40,{height-40} L 40,{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
-        decos.append(f'<path d="M {width-40},{height-40} L {width-80},{height-40} M {width-40},{height-40} L {width-40},{height-80}" stroke="{t['accent']}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<rect x="{seal_x - seal_r}" y="{seal_y - seal_r}" width="{seal_r * 2}" height="{seal_r * 2}" fill="{t["accent2"]}" opacity="0.85" rx="3"/>')
+        decos.append(f'<text x="{seal_x}" y="{seal_y + 8}" text-anchor="middle" font-size="22" fill="{t["accent"]}" font-family="{t["font_main"]}">印</text>')
+        decos.append(f'<path d="M 40,40 L 80,40 M 40,40 L 40,80" stroke="{t["accent"]}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<path d="M {width-40},40 L {width-80},40 M {width-40},40 L {width-40},80" stroke="{t["accent"]}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<path d="M 40,{height-40} L 80,{height-40} M 40,{height-40} L 40,{height-80}" stroke="{t["accent"]}" stroke-width="2" opacity="0.6"/>')
+        decos.append(f'<path d="M {width-40},{height-40} L {width-80},{height-40} M {width-40},{height-40} L {width-40},{height-80}" stroke="{t["accent"]}" stroke-width="2" opacity="0.6"/>')
     elif deco == "cyberpunk" or theme == "cyberpunk":
         # 网格线 + 发光点
         for i in range(0, width, 60):
@@ -863,7 +1079,7 @@ def build_decorations(theme, width, height, t):
 
 def build_html(theme, width, height, content, options, illustration=None):
     """把 SVG 包装成 HTML 供 Chrome 渲染"""
-    t = THEMES[theme]
+    t = resolve_theme(theme, options)
     layout = options.get("layout", "text")
     if layout == "image-text":
         if illustration is None:
@@ -1049,6 +1265,13 @@ def main():
     parser.add_argument("--layout", choices=["text", "image-text"], default="text", help="布局：text（默认纯文字）或 image-text（顶部插画+文字）")
     parser.add_argument("--illustration", help="image-text 布局的插画文件路径（.svg / .png / .jpg）")
     parser.add_argument("--image-text-width", type=float, default=0.65, help="image-text 文字区宽度占比（0.5-0.8，默认 0.65）")
+    # ── 照片背景（AI 生成或用户自备，技能不内置素材） ──
+    parser.add_argument("--background", help="满幅背景照片路径（.png/.jpg/.webp），自动 center-crop 铺满")
+    parser.add_argument("--scrim", type=float, help="暗色遮罩强度 0-0.92（默认取主题预设，通常 0.5-0.55）")
+    parser.add_argument("--blur", type=float, default=0, help="背景高斯模糊半径，默认 0（建议 2-6）")
+    parser.add_argument("--desaturate", type=float, nargs="?", const=0.65,
+                        help="背景降饱和 0-1，1=原色。不带值时取 0.65")
+    parser.add_argument("--grain", type=float, help="胶片颗粒强度 0-0.4（默认取主题预设）")
     parser.add_argument("--width", type=int, default=1080, help="输出宽度")
     parser.add_argument("--height", type=int, default=1440, help="输出高度")
     parser.add_argument("--output", "-o", help="输出 PNG 路径")
@@ -1092,7 +1315,29 @@ def main():
         "show_account": not args.hide_account,
         "layout": args.layout,
         "text_width_ratio": max(0.5, min(0.8, args.image_text_width)),
+        "scrim": args.scrim,
+        "blur": args.blur,
+        "desaturate": args.desaturate,
+        "grain": args.grain,
     }
+
+    # 加载背景照片（转 base64 内嵌，避免 Chrome file:// 限制）
+    if args.background:
+        try:
+            options["background"] = load_background(args.background)
+        except (FileNotFoundError, ValueError, OSError) as e:
+            print(f"背景图加载失败: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # 照片主题缺少背景图会静默退化为纯色卡片，这里显式告警
+        picked = list(THEMES.keys()) if args.all_themes else [args.theme]
+        hit = [k for k in picked if THEMES.get(k, {}).get("photo")]
+        if hit:
+            print(
+                f"警告: 主题 {', '.join(hit)} 为照片背景主题，未提供 --background，"
+                f"将退化为纯色底卡片。如需照片效果请加 --background <图片路径>。",
+                file=sys.stderr,
+            )
 
     # 加载插画
     illustration = None

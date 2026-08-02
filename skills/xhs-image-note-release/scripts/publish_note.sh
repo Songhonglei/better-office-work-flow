@@ -9,16 +9,23 @@ set -euo pipefail
 export PATH="$HOME/.local/bin:$PATH"
 
 # ---- 参数配置（按需修改）----
-IMAGE_DIR=""                        # 图片所在目录（绝对路径）
-IMAGES=""                           # 图片文件名，逗号分隔
-TITLE=""                            # 笔记标题（严禁包含单引号）
-BODY=''                             # 笔记正文（支持 \n 换行和 #话题标签；严禁包含反引号和 ${）
+# 支持两种方式：① 直接修改本文件  ② 通过环境变量传入
+IMAGE_DIR="${IMAGE_DIR:-}"          # 图片所在目录（绝对路径）
+IMAGES="${IMAGES:-}"                # 图片文件名，逗号分隔
+TITLE="${TITLE:-}"                  # 笔记标题（严禁包含单引号）
+BODY="${BODY:-}"                    # 笔记正文（支持 \n 换行；严禁包含反引号和 ${）
+TOPICS="${TOPICS:-}"                # 话题标签，逗号分隔（不要带 #；会逐个从下拉列表选择）
 # ---- 参数配置结束 ----
 
 # 参数校验
 if [ -z "$IMAGE_DIR" ] || [ -z "$IMAGES" ] || [ -z "$TITLE" ] || [ -z "$BODY" ]; then
   echo "ERROR: 请先填写 IMAGE_DIR, IMAGES, TITLE, BODY 四个参数"
   exit 1
+fi
+
+# 检查 TOPICS 不含 # 号（由脚本自动补 #）
+if echo "$TOPICS" | grep -q '#'; then
+  echo "WARN: TOPICS 不需要带 # 号，已自动忽略不影响发布"
 fi
 
 # 检查 ego-browser 是否可用
@@ -40,9 +47,6 @@ if echo "$BODY" | grep -q '`' || echo "$BODY" | grep -q '${'; then
   exit 1
 fi
 
-# 通过环境变量传递参数，避免 shell 注入风险
-export IMAGE_DIR IMAGES TITLE BODY
-
 # 将逗号分隔的图片名转为数组（用于显示统计）
 IFS=',' read -ra IMG_ARRAY <<< "$IMAGES"
 
@@ -51,17 +55,37 @@ echo "小红书图文笔记自动发布"
 echo "  图片目录: $IMAGE_DIR"
 echo "  图片数量: ${#IMG_ARRAY[@]}"
 echo "  标题: $TITLE"
+[ -n "$TOPICS" ] && echo "  话题: $TOPICS"
 echo "=========================================="
 echo ""
 
-# 使用 <<'EOF' 阻止 shell 展开，所有变量通过 process.env 读取
+# 将参数写入 JSON 临时文件，避免 heredoc 中 shell 展开导致注入
+PARAMS_FILE="/tmp/xhs_publish_params.json"
+python3 - "$IMAGE_DIR" "$IMAGES" "$TITLE" "$BODY" "$TOPICS" "$PARAMS_FILE" <<'PYEOF'
+import json, sys
+image_dir, images_str, title, body, topics_str, path = sys.argv[1:7]
+params = {
+  "imageDir": image_dir,
+  "images": [s.strip() for s in images_str.split(',') if s.strip()],
+  "title": title,
+  "body": body,
+  "topics": [t.strip().lstrip('#') for t in topics_str.split(',') if t.strip()]
+}
+with open(path, 'w', encoding='utf-8') as f:
+  json.dump(params, f, ensure_ascii=False)
+PYEOF
+
+# 使用 <<'EOF' 阻止 shell 展开，参数从 JSON 文件读取
 ego-browser nodejs <<'EOF'
-// 从环境变量安全读取参数（避免 shell 注入）
-const imageDir = process.env.IMAGE_DIR
-const images = process.env.IMAGES.split(',').map(s => s.trim()).filter(Boolean)
+import fs from 'fs'
+const params = JSON.parse(fs.readFileSync('/tmp/xhs_publish_params.json', 'utf8'))
+const imageDir = params.imageDir
+const images = params.images
 const filePaths = images.map(img => imageDir + '/' + img)
-const title = process.env.TITLE
-const body = process.env.BODY
+const title = params.title
+const body = params.body
+const bodyText = (body || '').replace(/\\n/g, '\n')
+const topics = params.topics
 
 // ===== 第1步：创建/复用 task space =====
 const task = await useOrCreateTaskSpace('publish xhs note')
@@ -181,12 +205,63 @@ cliLog('Filling body text...')
 await js(`document.querySelector('[contenteditable="true"]')?.focus()`)
 await wait(0.5)
 
-await typeText(body, { label: 'type body text' })
+await typeText(bodyText, { label: 'type body text' })
 await wait(1)
 
-// 按 Esc 关闭话题建议弹窗
+// ===== 第6.5步：逐个从下拉列表选择话题标签 =====
+if (topics.length > 0) {
+  cliLog('Inserting ' + topics.length + ' topics from dropdown...')
+  await typeText('\n\n', { label: 'newline before topics' })
+  await wait(0.5)
+
+  for (const topic of topics) {
+    cliLog('Adding topic: #' + topic)
+    await js(`document.querySelector('[contenteditable="true"]')?.focus()`)
+    await wait(0.5)
+
+    // 触发话题建议下拉
+    await typeText('#' + topic, { label: 'type topic #' + topic })
+    await wait(4)
+
+    // 从下拉列表点击匹配项（优先精确匹配，否则选第一个）
+    const topicResult = await js(`((topic) => {
+      const container = document.getElementById('creator-editor-topic-container')
+      if (!container) {
+        return { error: 'topic container not found' }
+      }
+      const items = [...container.querySelectorAll('.item')]
+      if (!items.length) {
+        return { error: 'no topic items', containerText: container.innerText.slice(0, 200) }
+      }
+      let item = items.find(el => {
+        const nameEl = el.querySelector('.name')
+        if (!nameEl) return false
+        const text = nameEl.innerText
+        return text === '#' + topic || text === topic || text.includes(topic)
+      })
+      if (!item) item = items[0]
+      item.click()
+      return { clicked: true, text: item.querySelector('.name')?.innerText || item.innerText }
+    })('${topic.replace(/'/g, "\\'")}')`)
+
+    cliLog('Topic click: ' + JSON.stringify(topicResult))
+    await wait(1.5)
+
+    // 若下拉框仍在，按 Esc 关闭
+    const popupStillOpen = await js(`!!document.getElementById('tippy-1')?.offsetParent`)
+    if (popupStillOpen) {
+      await pressKey('Escape')
+      await wait(0.5)
+    }
+
+    // 话题之间留一个空格
+    await typeText(' ', { label: 'space after topic' })
+    await wait(0.5)
+  }
+}
+
 await pressKey('Escape')
-await wait(1)
+await wait(0.5)
 
 // ===== 第7步：点击发布按钮 =====
 // 关键：小红书发布按钮在 <xhs-publish-btn> 的 closed Shadow DOM 内
@@ -242,6 +317,9 @@ cliLog('Final screenshot: ' + shot)
 await completeTaskSpace(task.id, { keep: false })
 cliLog('Task completed, space cleaned up')
 EOF
+
+# 清理参数临时文件
+rm -f "$PARAMS_FILE"
 
 echo ""
 echo "=========================================="
