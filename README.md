@@ -10,6 +10,7 @@
 | [wb-token-analyzer](./skills/wb-token-analyzer/) | WorkBuddy Token/Credit 使用量分析：按天/模型汇总、Top N 消耗任务排名、6 类优化建议、自定义模型支持、Neon Dashboard 可视化报告 |
 | [xhs-image-note-release](./skills/xhs-image-note-release/) | 小红书图文笔记自动发布：ego-browser 驱动全流程，CDP 批量上传图片，穿透 closed Shadow DOM 调用 `_onPublish()` 发布 |
 | [text-humanize](./skills/text-humanize/) | 中英文去 AI 味检测 + 改写：自动检测语言，识别 AI 生成模式，改写为自然人类文风 |
+| [zhihu-yanghao](./skills/zhihu-yanghao/) | 知乎养号：三线选题模型 + 每日1回答（写→发布→折叠验证）+ 点赞互动（计数差值自校正防误 toggle），依赖 ego-browser |
 
 ## Quick Start
 
@@ -24,6 +25,7 @@ cp -r skills/invoice-auto-forward ~/.workbuddy/skills/
 cp -r skills/wb-token-analyzer ~/.workbuddy/skills/
 cp -r skills/xhs-image-note-release ~/.workbuddy/skills/
 cp -r skills/text-humanize ~/.workbuddy/skills/
+cp -r skills/zhihu-yanghao ~/.workbuddy/skills/
 # 或 ~/.claude/skills/ / ~/.cursor/skills/ 等
 ```
 
