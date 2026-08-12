@@ -1,0 +1,34 @@
+{
+  "account": "kong-you-77",
+  "topic_pool": [
+    "历史", "神话", "西游记", "孔子", "三国",
+    "情感", "心理", "代际", "社交", "中年",
+    "社会热点", "职场", "产品", "财务"
+  ],
+  "answer_style": {
+    "min_words": 250,
+    "max_words": 800,
+    "perspective": "理性克制，结合自身财务产品/团队管理视角，避开前排情绪化回答"
+  },
+  "shifts": {
+    "morning": {
+      "enabled": true,
+      "time": "07:50",
+      "answer": true,
+      "interactions": { "like": 5, "collect": false, "follow": false, "comment": false }
+    },
+    "noon": {
+      "enabled": true,
+      "time": "12:30",
+      "answer": true,
+      "interactions": { "like": 5, "collect": true, "follow": true, "comment": false }
+    },
+    "evening": {
+      "enabled": true,
+      "time": "20:00",
+      "answer": true,
+      "interactions": { "like": 5, "collect": true, "follow": true, "comment": false }
+    }
+  },
+  "_note": "复制为 config.json 后按你自己的账号/话题修改。三班各写1回答=3回答/天，超出保守的1回答/天红线，属【自定义高风险】；若账号再被限流，先把三班 answer 改回仅 morning=true、其余 false。"
+}

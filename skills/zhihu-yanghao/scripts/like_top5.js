@@ -29,8 +29,8 @@
     + '   if (!zop.itemId || seen.has(zop.itemId)) continue;'
     + '   seen.add(zop.itemId);'
     + '   if (arr.length >= 5) break;'
-    + '   const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
-    + '   arr.push({ itemId: zop.itemId, voteText: b ? b.innerText.trim() : "" });'
+    + '   const b = nodes[i].querySelector("button[aria-label*="赞同"]");'
+    + '   arr.push({ itemId: zop.itemId, ariaLabel: b ? (b.getAttribute("aria-label")||"").trim() : "", active: b ? b.classList.contains("is-active") : false });'
     + ' }'
     + ' return arr;'
     + '})()')
@@ -39,15 +39,17 @@
   const results = []
   for (let i=0;i<before.length;i++){
     const itemId = before[i].itemId
-    const vt = before[i].voteText
-    if (vt.indexOf('已赞同') >= 0) { results.push({ itemId: itemId, action: 'skip_already_liked' }); cliLog('skip already-liked ' + itemId); continue }
+    if (before[i].active) { results.push({ itemId: itemId, action: 'skip_already_active' }); cliLog('skip already-active ' + itemId); continue }
     const clicked = await js('((id) => {'
       + ' const nodes = document.querySelectorAll("[data-zop]");'
       + ' for (let i=0;i<nodes.length;i++){'
       + '   let zop; try { zop = JSON.parse(nodes[i].getAttribute("data-zop")); } catch(e){ continue; }'
       + '   if (zop.itemId === id) {'
-      + '     const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
-      + '     if (b) { b.click(); return b.innerText.trim(); }'
+      + '     const b = nodes[i].querySelector("button[aria-label*="赞同"]");'
+      + '     if (b) {'
+      + '       if (b.classList.contains("is-active")) return "already_active";'
+      + '       b.click(); return (b.getAttribute("aria-label")||"").trim();'
+      + '     }'
       + '   }'
       + ' }'
       + ' return null;'
