@@ -41,6 +41,8 @@ CONFIG=/绝对路径/config.json SHIFT=noon ego-browser nodejs < scripts/run_shi
 # 晚班：指定 QID 覆盖自动选题（适合你想手动定点某问题）
 SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
 ```
+> ⚠️ **环境变量注意（重要）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃，且 `cwd` 锁死为 `/`），上面的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 会跑不起来、脚本内相对路径也找不到。可靠写法见 SKILL.md「运行模式」：用 heredoc 在脚本内 `process.env.X=...` 注入、用绝对路径 `eval` 主脚本。
+
 `run_shift.js` env 变量：
 - `CONFIG`：配置文件路径（默认 `../config.json`，找不到回退 `../config.example.json`）。
 - `SHIFT`：`morning` / `noon` / `evening`（必填）。

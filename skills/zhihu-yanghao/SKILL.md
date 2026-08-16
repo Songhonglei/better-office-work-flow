@@ -2,7 +2,7 @@
 name: zhihu-yanghao
 description: This skill provides the full Zhihu account-nurturing (养号) workflow for a Zhihu account via ego-browser — user-configurable topic pool, three-shift (morning/noon/evening) schedule where each shift writes+publishes+verifies one answer and runs like engagement, plus optional collect/follow/comment interactions driven by config. Use it when the user asks to 知乎养号 / 养知乎号 / 发知乎回答 / 知乎点赞互动 / 知乎浏览 / 三班养号, or wants a portable, risk-controlled, topic-configurable Zhihu growth routine on any machine where ego-browser is installed.
 agent_created: true
-version: 1.2.0
+version: 1.2.1
 metadata:
   openclaw:
     requires:
@@ -16,7 +16,7 @@ metadata:
         - LIMIT
 ---
 
-# 知乎养号（zhihu-yanghao）v1.2.0
+# 知乎养号（zhihu-yanghao）v1.2.1
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **用户可配置话题池 + 早/中/晚三班节奏**：
 
@@ -26,6 +26,9 @@ metadata:
 - **可选互动**：收藏 / 关注问题 / 评论，按 `config.json` 每班 `interactions` 用户自定义。
 
 可在任意装了 ego-browser 的机器上独立运行，不依赖本工作区记忆。
+
+## 更新日志
+- **v1.2.1**（2026-08-16）：修复 `run_shift.js` / `like_top5.js` 中点赞选择器 `button[aria-label*="赞同"]` 在 `js()` 二次求值时会引号错配报 `SyntaxError` 的问题，改为无引号写法 `button[aria-label*=赞同]`（已实测线上可用）。另补一条运行须知：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃、cwd 锁死 `/`），推荐用 heredoc 在脚本内注入 `process.env` 再 `eval` 主脚本（见下方「运行模式」）。
 
 ## 何时使用
 - 用户说「知乎养号」「养知乎号」「今天养号」「发知乎回答」「知乎点赞 / 互动 / 浏览」「三班养号」「按话题养号」。
@@ -65,6 +68,17 @@ CONFIG=/path/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
 SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
 ```
 脚本内部已含「已答过跳过 + 已赞跳过 + 差值自校正 + 发布卡死即停」。详细 env 与配置见 references/workflow.md。
+
+> ⚠️ **环境变量注意（重要）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 等会被丢弃，且进程 `cwd` 锁死为 `/`）。这会导致上面的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 跑不起来，同时脚本内相对路径 `../config.json` 也找不到文件。可靠写法是用 heredoc 在脚本内注入 env、用绝对路径 `eval` 主脚本（绝对路径脚本 + `fs.readFileSync` 读绝对路径 config，两个坑一起绕开）：
+> ```bash
+> ego-browser nodejs <<'EOF'
+> process.env.CONFIG = '/绝对路径/config.json';
+> process.env.SHIFT = 'morning';
+> const fs = require('fs');
+> const src = fs.readFileSync('/绝对路径/scripts/run_shift.js', 'utf8');
+> (function(){ eval(src); })();
+> EOF
+> ```
 
 ### 旧版单脚本（仍可用，按需）
 - `scripts/like_top5.js`：对指定问题点赞前 5（env: `QID`）。
