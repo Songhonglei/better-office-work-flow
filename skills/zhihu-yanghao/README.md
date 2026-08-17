@@ -1,6 +1,6 @@
 # zhihu-yanghao
 
-一套依赖 ego-browser 的知乎养号（account-nurturing）全流程 skill：选题 → 每日 1 回答（写 / 发布 / 折叠验证）→ 点赞互动（计数差值自校正），内嵌风控红线与陷阱。可在任意装了 ego-browser 的机器上独立运行，不依赖任何工作区记忆。
+一套依赖 ego-browser 的知乎养号（account-nurturing）全流程 skill：选题 → 每日 1 回答（写 / 发布 / 折叠验证）→ 点赞互动（计数差值自校正），内嵌 7/27 风控事故后总结的红线与陷阱。可在任意装了 ego-browser 的机器上独立运行，不依赖任何工作区记忆。
 
 ## 前置依赖
 - 已安装 ego-browser（ego lite 浏览器 + CLI），知乎账号已登录（ego-browser 继承系统登录态）。

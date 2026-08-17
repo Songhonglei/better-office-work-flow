@@ -1,41 +1,70 @@
 // run_shift.js — 知乎养号三班编排脚本（zhihu-yanghao v1.1.0）
 // 用法（Bash 必须 dangerouslyDisableSandbox:true，且关闭沙箱开关）：
-//   CONFIG=/path/config.json SHIFT=morning ego-browser nodejs < scripts/run_shift.js
-//   SHIFT=noon QID=2021300214389043782 CONTENT_FILE=/tmp/a.txt ego-browser nodejs < scripts/run_shift.js
+//   先把参数写到 /tmp/zhihu_shift_params.json（见底部 schema），再：
+//   ego-browser nodejs < scripts/run_shift.js
+//   兼容旧式 env 传参（其他机器若 ego-browser 透传 env 仍可用）：
+//   SHIFT=morning QID=xxx CONTENT_FILE=xxx ego-browser nodejs < scripts/run_shift.js
 //
-// 行为：读 config.json → 按 班次+日序号 轮转话题池取关键词 → 选未答过问题(QID 可覆盖)
-//        → 点赞前5(差值自校正) → 若 answer=true 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论
+// 行为：读配置 → 按 班次+日序号 轮转话题池取关键词 → 选未答过问题(QID 可覆盖)
+//        → 前10候选随机选3-5点赞(自然化) → 若 answer=true 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论
 //
-// env：
-//   CONFIG      配置文件路径（默认 ../config.json，找不到回退 ../config.example.json）
-//   SHIFT       morning|noon|evening（必填）
-//   QID         指定问题 qid（可选，跳过自动选题）
-//   CONTENT     回答正文（answer=true 时必填其一）
-//   CONTENT_FILE 回答正文文件路径（优先于 CONTENT）
-//   KW          覆盖轮转关键词（可选，逗号分隔）
+// 参数优先级：env（SHIFT/CONFIG/QID/CONTENT/CONTENT_FILE/KW/LIMIT/COMMENT_TEXT）> /tmp/zhihu_shift_params.json
+// 注：部分 ego-browser 构建不向 nodejs 运行时透传 shell env，故参数文件为可靠路径。
 
 (async () => {
   const fs = require('fs')
   const path = require('path')
 
+  // ---------- 0. 参数加载（env 优先，回退参数文件） ----------
+  function loadParams() {
+    const p = {}
+    if (process.env.SHIFT) p.shift = process.env.SHIFT
+    if (process.env.CONFIG) p.configPath = process.env.CONFIG
+    if (process.env.QID) p.qid = process.env.QID
+    if (process.env.CONTENT) p.content = process.env.CONTENT
+    if (process.env.CONTENT_FILE) p.contentFile = process.env.CONTENT_FILE
+    if (process.env.KW) p.kw = process.env.KW
+    if (process.env.LIMIT) p.limit = process.env.LIMIT
+    if (process.env.COMMENT_TEXT) p.commentText = process.env.COMMENT_TEXT
+    const file = '/tmp/zhihu_shift_params.json'
+    if (!p.shift) {
+      try {
+        const f = JSON.parse(fs.readFileSync(file, 'utf8'))
+        for (const k of ['shift', 'configPath', 'qid', 'content', 'contentFile', 'kw', 'limit', 'commentText']) {
+          if (f[k] != null && p[k] == null) p[k] = f[k]
+        }
+        cliLog('PARAMS_FROM_FILE: ' + file)
+      } catch (e) {
+        cliLog('PARAMS_FILE_MISSING: ' + file + ' (' + e.message + ')')
+      }
+    }
+    return p
+  }
+  const P = loadParams()
+
   // ---------- 1. 加载配置 ----------
   function loadConfig() {
     const candidates = []
+    if (P.configPath) candidates.push(P.configPath)
     if (process.env.CONFIG) candidates.push(process.env.CONFIG)
-    candidates.push(path.join(__dirname, '..', 'config.json'))
-    candidates.push(path.join(__dirname, '..', 'config.example.json'))
+    candidates.push('/tmp/zhihu_config.json')
+    candidates.push(path.join(process.cwd(), 'config.json'))
+    candidates.push(path.join(process.cwd(), 'config.example.json'))
+    candidates.push('/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/config.json')
+    candidates.push('/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/config.example.json')
     for (const c of candidates) {
+      if (!c) continue
       try { return { path: c, data: JSON.parse(fs.readFileSync(c, 'utf8')) } } catch (e) {}
     }
     return null
   }
   const cfg = loadConfig()
-  if (!cfg) { cliLog('ERROR: no config.json found (looked for CONFIG env, ../config.json, ../config.example.json)'); return }
+  if (!cfg) { cliLog('ERROR: no config.json found'); return }
   cliLog('CONFIG_LOADED: ' + cfg.path)
 
-  const SHIFT = (process.env.SHIFT || '').toLowerCase()
+  const SHIFT = (P.shift || '').toLowerCase()
   if (!['morning', 'noon', 'evening'].includes(SHIFT)) {
-    cliLog('ERROR: set SHIFT=morning|noon|evening'); return
+    cliLog('ERROR: set SHIFT=morning|noon|evening (or shift in params file)'); return
   }
   const shiftCfg = (cfg.data.shifts || {})[SHIFT]
   if (!shiftCfg || shiftCfg.enabled === false) {
@@ -50,7 +79,7 @@
     return Math.floor(diff / 86400000)
   }
   const pool = (cfg.data.topic_pool || []).filter(Boolean)
-  let kw = process.env.KW
+  let kw = P.kw
   if (!kw && pool.length) {
     const offsets = { morning: 0, noon: 1, evening: 2 }
     const n = pool.length
@@ -97,10 +126,10 @@
     return chosen
   }
 
-  let qid = process.env.QID
+  let qid = P.qid
   let chosenTitle = ''
   if (!qid) {
-    const limit = parseInt(process.env.LIMIT || '25', 10)
+    const limit = parseInt(P.limit || '25', 10)
     const c = await pickQuestion(kw, limit)
     if (!c) { cliLog('ERROR: no candidate question found for KW=' + kw); return }
     qid = c.qid; chosenTitle = c.title
@@ -127,13 +156,30 @@
     return
   }
 
-  // ---------- 5. 点赞前5（差值自校正） ----------
+  // ---------- 5. 点赞：前 pool 个候选里随机选 min~max 个（自然化，避免每次固定点赞前 N 被风控） ----------
   cliLog('simulating read 90s (risk control)...')
   await wait(90)
   const interactions = shiftCfg.interactions || {}
-  const likeN = parseInt(interactions.like || '0', 10)
 
-  if (likeN > 0) {
+  // like spec 兼容：旧式整数 N（=固定 N 个） / 新式对象 {pool,min,max}
+  function parseLikeSpec(raw) {
+    if (raw == null) return null
+    if (typeof raw === 'number') return { pool: raw, min: raw, max: raw }
+    if (typeof raw === 'object') {
+      const pool = parseInt(raw.pool, 10)
+      let min = parseInt(raw.min, 10)
+      let max = parseInt(raw.max, 10)
+      if (isNaN(pool)) return null
+      if (isNaN(min)) min = pool
+      if (isNaN(max)) max = pool
+      if (min > max) { const t = min; min = max; max = t }
+      return { pool: pool, min: min, max: max }
+    }
+    return null
+  }
+  const likeSpec = parseLikeSpec(interactions.like)
+
+  if (likeSpec) {
     const before = await js('(() => {'
       + ' const seen = new Set(); const arr = [];'
       + ' const nodes = document.querySelectorAll("[data-zop]");'
@@ -141,47 +187,57 @@
       + '   let zop; try { zop = JSON.parse(nodes[i].getAttribute("data-zop")); } catch (e) { continue; }'
       + '   if (!zop.itemId || seen.has(zop.itemId)) continue;'
       + '   seen.add(zop.itemId);'
-      + '   if (arr.length >= ' + likeN + ') break;'
-      + '   const b = nodes[i].querySelector("button[aria-label*=赞同]");'
-      + '   arr.push({ itemId: zop.itemId, ariaLabel: b ? (b.getAttribute("aria-label")||"").trim() : "", active: b ? b.classList.contains("is-active") : false });'
+      + '   if (arr.length >= ' + likeSpec.pool + ') break;'
+      + '   const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
+      + '   arr.push({ itemId: zop.itemId, voteText: b ? b.innerText.trim() : "" });'
       + ' }'
       + ' return arr;'
       + '})()')
-    cliLog('BEFORE_LIKES: ' + JSON.stringify(before))
+    cliLog('CANDIDATE_POOL(' + likeSpec.pool + '): ' + before.length + ' answers collected')
+    const n = before.length
+    const minC = Math.min(likeSpec.min, n)
+    const maxC = Math.min(likeSpec.max, n)
+    const count = n === 0 ? 0 : (minC + Math.floor(Math.random() * (maxC - minC + 1)))
+    cliLog('RANDOM_LIKE_COUNT: ' + count + ' (min=' + likeSpec.min + ' max=' + likeSpec.max + ' avail=' + n + ')')
+    const shuffled = before.slice()
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      const t = shuffled[i]; shuffled[i] = shuffled[j]; shuffled[j] = t
+    }
+    const picks = shuffled.slice(0, count)
+    cliLog('PICKED_ITEMIDS: ' + JSON.stringify(picks.map(function (x) { return x.itemId; })))
     const results = []
-    for (let i = 0; i < before.length; i++) {
-      const itemId = before[i].itemId
-      if (before[i].active) { results.push({ itemId: itemId, action: 'skip_already_active' }); cliLog('skip already-active ' + itemId); continue }
+    for (let i = 0; i < picks.length; i++) {
+      const itemId = picks[i].itemId
+      const vt = picks[i].voteText
+      if (vt.indexOf('已赞同') >= 0) { results.push({ itemId: itemId, action: 'skip_already_liked' }); cliLog('skip already-liked ' + itemId); continue }
       const clicked = await js('((id) => {'
         + ' const nodes = document.querySelectorAll("[data-zop]");'
         + ' for (let i = 0; i < nodes.length; i++) {'
         + '   let zop; try { zop = JSON.parse(nodes[i].getAttribute("data-zop")); } catch (e) { continue; }'
         + '   if (zop.itemId === id) {'
-        + '     const b = nodes[i].querySelector("button[aria-label*=赞同]");'
-        + '     if (b) {'
-        + '       if (b.classList.contains("is-active")) return "already_active";'
-        + '       b.click(); return (b.getAttribute("aria-label")||"").trim();'
-        + '     }'
+        + '     const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
+        + '     if (b) { b.click(); return b.innerText.trim(); }'
         + '   }'
         + ' }'
         + ' return null;'
         + '})(' + JSON.stringify(itemId) + ')')
       results.push({ itemId: itemId, after: clicked })
       cliLog('liked ' + itemId + ' -> ' + clicked)
-      if (i < before.length - 1) { const gap = 35 + Math.floor(Math.random() * 45); await wait(gap) }
+      if (i < picks.length - 1) { const gap = 35 + Math.floor(Math.random() * 45); await wait(gap) }
     }
     cliLog('LIKE_RESULT: ' + JSON.stringify(results))
   } else {
-    cliLog('like disabled for this shift (like:0)')
+    cliLog('like disabled for this shift (interactions.like = 0/null)')
   }
 
   // ---------- 6. 写回答（answer=true 时） ----------
   let aid = null
   if (shiftCfg.answer) {
-    let content = process.env.CONTENT || ''
-    if (process.env.CONTENT_FILE) content = fs.readFileSync(process.env.CONTENT_FILE, 'utf8')
+    let content = P.content || ''
+    if (P.contentFile) content = fs.readFileSync(P.contentFile, 'utf8')
     if (!content.trim()) {
-      cliLog('WARN: answer=true but no CONTENT/CONTENT_FILE — skipping answer (do NOT publish empty)')
+      cliLog('WARN: answer=true but no content — skipping answer (do NOT publish empty)')
     } else {
       const opened = await js('(() => {'
         + ' const btns = Array.from(document.querySelectorAll("button"));'
@@ -217,16 +273,12 @@
     cliLog('answer disabled for this shift')
   }
 
-  // ---------- 7. 验证未折叠 + API 真值 ----------
+  // ---------- 7. 验证未折叠 ----------
   if (aid) {
-    const api = await serverFetch('https://www.zhihu.com/api/v4/answers/' + aid + '?include=content,is_collapsed,voteup_count,updated_time')
+    const api = await serverFetch('https://www.zhihu.com/api/v4/answers/' + aid)
     const raw = (api || '').toString()
     const i1 = raw.indexOf('is_collapsed')
     cliLog('API_VERIFY is_collapsed=' + (i1 >= 0 ? raw.substr(i1, 24) : '?'))
-    const i2 = raw.indexOf('updated_time')
-    cliLog('API_VERIFY updated_time=' + (i2 >= 0 ? raw.substr(i2, 24) : '?'))
-    const hasEscape = /\\u[0-9a-fA-F]{4}/.test(raw)
-    cliLog('API_VERIFY content_has_unicode_escape=' + hasEscape + ' (false=OK, 见 8/4 乱码教训)')
   }
 
   // ---------- 8. 可选互动：收藏 / 关注问题 / 评论 ----------
@@ -253,7 +305,6 @@
     await wait(3)
   }
   if (interactions.comment) {
-    // 实验性：评论触发审核敏感，默认关闭。选择器可能随知乎改版失效，失败即跳过。
     const opened = await js('(() => {'
       + ' const btns = Array.from(document.querySelectorAll("button"));'
       + ' const b = btns.find(function (x) { return x.innerText.indexOf("添加评论") >= 0; });'
@@ -263,14 +314,13 @@
     cliLog('COMMENT_EDITOR_OPENED: ' + opened)
     if (opened) {
       await wait(3)
-      const txt = process.env.COMMENT_TEXT || ''
+      const txt = P.commentText || ''
       if (txt) {
-        const filled = await (async () => {
-          try {
-            await fillInput('.CommentEditor-input, [contenteditable="true"][data-placeholder*="评论"]', txt)
-            return true
-          } catch (e) { return 'fill_failed:' + e.message }
-        })()
+        let filled = 'no_text'
+        try {
+          await fillInput('.CommentEditor-input, [contenteditable="true"][data-placeholder*="评论"]', txt)
+          filled = true
+        } catch (e) { filled = 'fill_failed:' + e.message }
         cliLog('COMMENT_FILLED: ' + filled)
         if (filled === true) {
           const sent = await js('(() => {'
@@ -283,7 +333,7 @@
           await wait(3)
         }
       } else {
-        cliLog('COMMENT_SKIP: no COMMENT_TEXT provided')
+        cliLog('COMMENT_SKIP: no commentText provided')
       }
     }
   }
@@ -291,3 +341,15 @@
   cliLog('SHIFT_DONE: ' + SHIFT + ' qid=' + qid + (aid ? ' aid=' + aid : ''))
   await completeTaskSpace(space, { keep: false })
 })()
+
+// 参数文件 schema（/tmp/zhihu_shift_params.json）：
+// {
+//   "shift": "morning|noon|evening",
+//   "qid": "2070982459156424668",          // 可选，跳过自动选题
+//   "contentFile": "/abs/answer.txt",       // answer=true 时必填其一
+//   "content": "回答正文...",                // 或直接内联
+//   "configPath": "/abs/config.json",       // 可选
+//   "kw": "历史,神话",                       // 可选，覆盖轮转
+//   "limit": 25,                            // 可选
+//   "commentText": "评论内容"               // 可选，comment=true 时
+// }

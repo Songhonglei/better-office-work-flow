@@ -15,19 +15,19 @@
       "enabled": true,
       "time": "07:50",
       "answer": true,
-      "interactions": { "like": 5, "collect": false, "follow": false, "comment": false }
+      "interactions": { "like": { "pool": 10, "min": 3, "max": 5 }, "collect": false, "follow": false, "comment": false }
     },
     "noon": {
       "enabled": true,
       "time": "12:30",
       "answer": true,
-      "interactions": { "like": 5, "collect": true, "follow": true, "comment": false }
+      "interactions": { "like": { "pool": 10, "min": 3, "max": 5 }, "collect": true, "follow": true, "comment": false }
     },
     "evening": {
       "enabled": true,
       "time": "20:00",
       "answer": true,
-      "interactions": { "like": 5, "collect": true, "follow": true, "comment": false }
+      "interactions": { "like": { "pool": 10, "min": 3, "max": 5 }, "collect": true, "follow": true, "comment": false }
     }
   },
   "_note": "复制为 config.json 后按你自己的账号/话题修改。三班各写1回答=3回答/天，超出保守的1回答/天红线，属【自定义高风险】；若账号再被限流，先把三班 answer 改回仅 morning=true、其余 false。"

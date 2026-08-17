@@ -14,7 +14,7 @@
      - `enabled`：是否启用该班。
      - `time`：建议触发时间（自动化调度用）。
      - `answer`：该班是否写 1 回答。
-     - `interactions`：`{ like, collect, follow, comment }` 数量/开关——**收藏/关注/评论是否做、做多少，全由你在这里配**（comment 默认 false，实验性）。
+     - `interactions`：`{ like, collect, follow, comment }`——`like` 为点赞配置：**整数 `5`（固定 5 个）或对象 `{"pool":10,"min":3,"max":5}`（前 10 个候选随机选 3–5，推荐自然化）**；`collect`/`follow`/`comment` 为开关（comment 默认 false，实验性）。
 3. 改完保存即可，run_shift.js 下次运行自动读最新配置。
 
 ## 两种调用方式
@@ -30,29 +30,37 @@ EOF
 ```
 
 ## 推荐：三班编排（run_shift.js）
-一个命令跑完一个班的全部动作，配置全在 config.json：
+一个命令跑完一个班的全部动作，配置全在 config.json。本环境用**参数文件**方式（ego-browser 不透传 env）：
 ```
-# 早班：按 config 轮转话题 + 写1回答 + 仅点赞（依 config.interactions）
-CONFIG=/绝对路径/config.json SHIFT=morning ego-browser nodejs < scripts/run_shift.js
+# 1) 写参数文件（shift/qid/contentFile/configPath 等），见下方 schema
+cat > /tmp/zhihu_shift_params.json <<'EOF'
+{ "shift": "morning", "qid": "2070982459156424668",
+  "contentFile": "/abs/answer.txt",
+  "configPath": "/abs/config.json" }
+EOF
 
-# 午班：写1回答 + 点赞 + 收藏 + 关注（依 config.interactions）
-CONFIG=/绝对路径/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
-
-# 晚班：指定 QID 覆盖自动选题（适合你想手动定点某问题）
-SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
+# 2) 跑（不带 env，脚本自动读参数文件）
+ego-browser nodejs < scripts/run_shift.js
 ```
-> ⚠️ **环境变量注意（重要）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃，且 `cwd` 锁死为 `/`），上面的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 会跑不起来、脚本内相对路径也找不到。可靠写法见 SKILL.md「运行模式」：用 heredoc 在脚本内 `process.env.X=...` 注入、用绝对路径 `eval` 主脚本。
+env 写法（其他机器若透传 env 可用）：`SHIFT=morning CONFIG=/abs/config.json ego-browser nodejs < scripts/run_shift.js`。
+`run_shift.js` 参数（**env 优先，回退参数文件**）：
+- **env 方式**（部分 ego-browser 构建不透传 shell env，见下）：`CONFIG` / `SHIFT` / `QID` / `CONTENT` / `CONTENT_FILE` / `KW` / `LIMIT` / `COMMENT_TEXT`。
+- **参数文件方式（推荐，env 不可用时）**：把下列 JSON 写到 `/tmp/zhihu_shift_params.json`，再 `ego-browser nodejs < scripts/run_shift.js`（不传 env）：
+  ```json
+  {
+    "shift": "morning|noon|evening",
+    "qid": "2070982459156424668",
+    "contentFile": "/abs/answer.txt",
+    "configPath": "/abs/config.json",
+    "kw": "历史,神话",
+    "limit": 25,
+    "commentText": "评论内容"
+  }
+  ```
 
-`run_shift.js` env 变量：
-- `CONFIG`：配置文件路径（默认 `../config.json`，找不到回退 `../config.example.json`）。
-- `SHIFT`：`morning` / `noon` / `evening`（必填）。
-- `QID`：指定问题 qid（可选，跳过自动选题）。
-- `CONTENT` / `CONTENT_FILE`：回答正文（`answer=true` 时必填其一；CONTENT_FILE 优先）。
-- `KW`：覆盖轮转关键词（可选，逗号分隔）。
-- `LIMIT`：热榜扫描条数（默认 25）。
-- `COMMENT_TEXT`：评论内容（`interactions.comment=true` 时可选）。
+> ⚠️ **本机实测（macOS / ego-browser nodejs）不向运行时透传 shell 环境变量**——`process.env.*` 全为 `UNDEF`，故 heredoc/env 内联写法在本环境会失败。统一用「参数文件 `/tmp/zhihu_shift_params.json` + 不带 env 的 `ego-browser nodejs < scripts/run_shift.js`」最稳。脚本已同时兼容 env（其他机器若透传仍可用）。
 
-脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 点赞前5（差值自校正）→ 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 发布卡死即停」。
+脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机选3-5点赞（自然化）→ 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 随机选赞 + 发布卡死即停」。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：
@@ -60,7 +68,7 @@ SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser n
 KW='历史,神话,唐僧,西游记' ego-browser nodejs < scripts/pick_question.js
 ```
    从 KEYWORD_HITS / ALL_TITLES 选一个中热度、未答过的问题，记下 qid。
-2. 验证未答过并点赞前 5（脚本内含「已答过跳过 + 已赞跳过 + 差值自校正」）：
+2. 验证未答过并点赞（前10随机选3-5，脚本内含「已答过跳过 + 已赞跳过 + 随机选赞」）：
 ```
 QID=<qid> ego-browser nodejs < scripts/like_top5.js
 ```
