@@ -3,6 +3,33 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.6.3 (2026-08-18)
+
+- **Docs**: SKILL.md「注意事项」新增第 11 条——重复发布/存草稿会累积「暂无笔记标题」废草稿，并记录清理方法与确认弹窗的**真实删除按钮**选择器。
+  - 小红书创作平台每次进入图文编辑页并发生导航/重渲染，会自动存若干空草稿（标题「暂无笔记标题」）；`draft` 模式重跑多篇后草稿箱会堆积大量废草稿。
+  - 清理：草稿箱 → 图文笔记 tab → 每个废草稿点 `.draft-actions` 最后一个 `.btn`（删除）→ 确认弹窗。
+  - ⚠️ 确认弹窗删除按钮是真实 `<button class="...model-footer-confirm-btn draft-delete-popconfirm-btn-footer-confirm">删除</button>`；点 footer 容器 `<div class="modal-footer-buttons">`（文本也是「取消 删除」）是空操作，不删。文案含「草稿删除后不可找回」。
+
+### v1.6.2 (2026-08-18)
+
+- **Fix (root cause)**: `scripts/publish_note.sh` 修复图片上传「只留空占位符、计数有但图不进编辑器」的根因。
+  - 实测发现：即便 v1.6.1 已补 `change` 事件，批量 `DOM.setFileInputFiles`（含逐个串行 CDP `setFileInputFiles`）仍只产生「图片编辑 N/18」的假计数，**编辑器内 `img` 数为 0**，CDN 无真实上传。
+  - 真因：小红书上传组件对批量文件输入做特殊拦截，只有走浏览器原生文件选择（`uploadFile()` 单文件循环，每个文件独立触发一次选择）才会真正起传。
+  - 改写上传块为 `uploadFile('input[type="file"][accept*=".png"]', fp)` **逐张循环**，每传一张 `wait(6)`；最终 `wait(10)` 等 CDN 回源。实测计数稳定 1,2,3… 递增，发布后 `editCount=10`、`imgCount=11`（10 图 + 加图位）。
+  - 选择器统一收敛为 `input[type="file"][accept*=".png"]`（原 `input.upload-input` 偶不命中）。
+- **Fix**: 上传校验 + 草稿箱校验改用 `document.body.innerText.split('\n')` 逐行匹配（非正则），`js()` Runtime.evaluate 不支持正则字面量 `/…/`，会抛 "Invalid regular expression: missing /"。通过解析 `图片编辑 N/18` 行取 `editCount`、`草稿箱(N)` 行取草稿数；失败 `ERROR` 退出。
+- **Fix**: 全部失败分支 `completeTaskSpace(task.id, { keep: true })` 改为 `{ keep: false }`，避免失败 task space 残留占用；task space 名改为 `'publish xhs note ' + Date.now()` 防用户接管冲突。
+- **Docs**: SKILL.md「上传图片」章节重写，明确 `uploadFile()` 单文件循环（替代旧 CDP 批量 + change 事件思路），并把「批量 `DOM.setFileInputFiles` 只留空占位符」列为最高优先级坑点 #9；校验改用 `editCount`（N）+ `xhscdn.com`/`spectrum/` 预览计数。`references/publish-method.md` 同步。
+- **Docs**: 修正 v1.6.1 条目中关于「补 change 事件即可修复上传」的表述——实测不充分，v1.6.2 才是真因修复。
+
+### v1.6.1 (2026-08-18)
+
+- **Fix**: `scripts/publish_note.sh` 修复图片上传只留空占位符的问题。
+  - `DOM.setFileInputFiles` 设置文件后新增手动触发 `input` + `change` 事件，否则 Vue 不会开始实际上传。
+  - 新增上传校验：等待 12 秒后统计 `xhscdn.com` / `spectrum/` 预览图数量，若小于上传张数则报错退出并保留 task space 供排查。
+- **Docs**: SKILL.md「上传图片」章节重写，明确 CDP 批量上传必须触发 change 事件并校验 CDN 预览图；注意事项新增「图片上传必须校验」条目。
+- **Docs**: 注意事项中进一步强调 draft 模式草稿存于当前浏览器本地、不跨浏览器/设备，只有发布后的笔记才进入账号云端。
+
 ### v1.6.0 (2026-08-18)
 
 - **Feature**: 新增**存草稿模式**（draft）。用户要求「存草稿 / 推到草稿箱 / 自己点发布」时走此模式。

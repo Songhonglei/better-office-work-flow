@@ -46,7 +46,7 @@ URL: https://creator.xiaohongshu.com/publish/publish
 
 **不能用** `uploadFile()` 传逗号分隔的多文件路径（不生效，只上传第一张或无反应）。
 
-**正确做法**：用 CDP（Chrome DevTools Protocol）批量设置：
+**正确做法**：用 CDP（Chrome DevTools Protocol）批量设置文件，然后**必须手动触发 `input` + `change` 事件**，否则 Vue 等前端框架不会开始实际上传，编辑器会显示「图片编辑 10/18」但缩略图是空占位符，保存草稿后图片为空。
 
 ```js
 const doc = await cdp('DOM.getDocument', {})
@@ -58,9 +58,25 @@ await cdp('DOM.setFileInputFiles', {
   files: ['/path/to/card_01.png', '/path/to/card_02.png', ...],
   nodeId: inputNode.nodeId
 })
+
+// 关键：触发事件，让前端开始上传
+const input = document.querySelector('input.upload-input')
+input.dispatchEvent(new Event('input', { bubbles: true }))
+input.dispatchEvent(new Event('change', { bubbles: true }))
+
+await wait(12)  // 等待图片上传到 CDN 并生成预览
 ```
 
-上传后等待 **8 秒** 让图片处理完成（生成缩略图、上传到 CDN）。
+**上传校验**：统计小红书 CDN 预览图数量，确认图片真的上传成功：
+
+```js
+const cdnCount = [...document.querySelectorAll('img')].filter(i =>
+  (i.src || '').includes('xhscdn.com') || (i.src || '').includes('spectrum/')
+).length
+if (cdnCount < filePaths.length) {
+  throw new Error('图片未正确上传到小红书，可能只留下了空占位符')
+}
+```
 
 - 图片推荐尺寸：1080x1440（3:4 竖屏）
 - 最多 18 张

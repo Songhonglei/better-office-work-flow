@@ -8,7 +8,7 @@ description: >
   卡片主题、布局、背景图、遮罩强度、模糊、颗粒等参数均可自由配置。
   当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖、存草稿、推到草稿箱或涉及小红书内容发布时触发此技能。
   前置依赖：ego-browser (ego-lite) 已安装且正在运行，小红书账号已登录。
-version: 1.6.0
+version: 1.6.3
 bins: [node, python3]
 ---
 
@@ -47,7 +47,7 @@ bins: [node, python3]
 
 ```
 创建 task space → 打开创作平台 → 等待 SPA 渲染(15s) → 进入图文发布页(自动兼容 tab/下拉)
-→ 上传图片(CDP 批量) → 填标题 → 填正文 → 逐个话题从下拉列表选择
+→ 上传图片(uploadFile 单文件循环) → 填标题 → 填正文 → 逐个话题从下拉列表选择
 → 调用 _onPublish() 发布 或 _onSave() 存草稿（由 MODE 决定）→ 校验结果 → 清理 task space
 ```
 
@@ -76,7 +76,7 @@ EOF
 - **方式 A（顶部 tab）**：页面顶部有「上传视频 / 上传图文 / 写长文」tab 导航，点击「上传图文」
 - **方式 B（下拉菜单）**：页面有「发布笔记」下拉按钮，点击展开后选「上传图文」
 
-脚本逻辑：先试方式 A（按文本遍历点击），检查是否出现 `input.upload-input`；如果没有，回退到方式 B（snapshotText 匹配 ref 点击）。
+脚本逻辑：先试方式 A（按文本遍历点击），检查是否出现图片 file input（`input[type="file"][accept*=".png"]`）；如果没有，回退到方式 B（snapshotText 匹配 ref 点击）。
 
 ```js
 // 方式 A：点击顶部「上传图文」tab
@@ -100,7 +100,7 @@ const tabClicked = await js(`(() => {
 await wait(3)
 
 // 检查是否已进入图文编辑页
-if (!await js(`!!document.querySelector('input.upload-input')`)) {
+if (!await js(`!!document.querySelector('input[type="file"][accept*=".png"]')`)) {
   // 方式 B：回退到「发布笔记」下拉菜单
   const pageText = await snapshotText()
   const matchPublish = pageText.match(/发布笔记.*?\[ref=(\d+)/)
@@ -118,27 +118,30 @@ if (!await js(`!!document.querySelector('input.upload-input')`)) {
 }
 ```
 
-> **注意**：两种 UI 可能同时存在或随版本切换，脚本以 `input.upload-input` 是否出现为判断标准，自动选择可用入口。
+> **注意**：两种 UI 可能同时存在或随版本切换，脚本以图片 file input 是否出现为判断标准，自动选择可用入口。
 
-### 3. 上传图片（CDP 批量）
+### 3. 上传图片（uploadFile 单文件循环）
 
-**不能用** `uploadFile()` 传逗号分隔多文件路径（不生效）。**必须用 CDP**：
+小红书 Web 端对批量 `DOM.setFileInputFiles` 只创建空占位、不真正上传图片，因此改用 **`uploadFile()` 逐个上传**，每次调用都会触发真实的文件选择/change 事件，图片能真正落到 CDN。
 
 ```js
-const doc = await cdp('DOM.getDocument', {})
-const inputNode = await cdp('DOM.querySelector', {
-  nodeId: doc.root.nodeId,
-  selector: 'input.upload-input'
-})
-await cdp('DOM.setFileInputFiles', {
-  files: ['/abs/path/img1.png', '/abs/path/img2.png', ...],
-  nodeId: inputNode.nodeId
-})
-await wait(8)  // 等待图片处理
+for (let i = 0; i < filePaths.length; i++) {
+  const fp = filePaths[i]
+  cliLog('Uploading file ' + (i + 1) + '/' + filePaths.length + ': ' + fp)
+  await uploadFile('input[type="file"][accept*=".png"]', fp)
+  await wait(6)  // 等待单张图上传处理
+}
+await wait(10)   // 最后批量等待 CDN 缩略图
 ```
 
 - 图片推荐尺寸：1080x1440（3:4 竖屏）
 - 最多 18 张
+- 文件路径必须是绝对路径
+
+> ⚠️ **踩坑记录（已验证，2026-08-18）**：
+> - 用 `DOM.setFileInputFiles` 批量设置 10 张文件并手动触发 `input`/`change` 事件，编辑器会显示「图片编辑 10/18」，但缩略图是空占位符，保存草稿后图片为空。
+> - 用 `uploadFile()` 单文件循环上传，每次只传 1 张，可确保每张图真正上传到小红书 CDN。
+> - 校验时以「图片编辑 N/18」的 **N**（`editCount`）为准，并辅以 `img[src*="xhscdn.com"]` / `spectrum/` 预览图数量判断。
 
 ### 4. 填写标题
 
@@ -471,8 +474,11 @@ done
 5. **权限设置**：发布前如需设置权限（公开/仅自己可见），在填正文后、点发布前操作
 6. **标题特殊字符**：脚本中 TITLE 变量会插入 JS 单引号字符串，**严禁**包含单引号，否则会中断脚本
 7. **正文特殊字符**：脚本中 BODY 变量会插入 JS 模板字符串，**严禁**包含反引号（``` ` ```）和 `${`，否则会中断脚本
-8. **存草稿模式（draft）**：小红书**没有「存草稿」按钮**，右下角文字是「暂存离开」，藏在 `<xhs-publish-btn>` 闭渲染组件内，DOM/坐标都抓不到；必须调 `host._onSave()`。草稿存于当前浏览器本地，`draft` 模式不会自动发布，需用户进「草稿箱」自行点发布。校验用「草稿箱(N)」计数 +1（正则 `草稿箱\((\d+)\)`）
-9. **多笔记发布频率**：同一账号连续发多篇易触发风控，建议每篇间隔 ≥5 分钟，或先用 `draft` 模式全部存草稿、再手动逐一发布
+8. **存草稿模式（draft）**：小红书**没有「存草稿」按钮**，右下角文字是「暂存离开」，藏在 `<xhs-publish-btn>` 闭渲染组件内，DOM/坐标都抓不到；必须调 `host._onSave()`。**草稿存于当前浏览器本地**，不是账号云端同步，不跨浏览器、不跨设备，换电脑或清缓存就看不见。只有「发布」后的笔记才会进入账号云端，在手机/任意浏览器登录同一账号都能看到。校验用「草稿箱(N)」计数 +1（正则 `草稿箱\((\d+)\)`）
+9. **图片上传必须真正落盘**：批量 `DOM.setFileInputFiles` 即使触发 `input`/`change` 事件，也只会在编辑器里留下空占位符。正确做法是使用 `uploadFile()` 逐个上传单张图片，每次触发真实文件选择事件；校验时以「图片编辑 N/18」的 N（`editCount`）是否 ≥ 上传张数为主，辅以 `img[src*="xhscdn.com"]` / `spectrum/` 预览图数量判断
+10. **多笔记发布频率**：同一账号连续发多篇易触发风控，建议每篇间隔 ≥5 分钟，或先用 `draft` 模式全部存草稿、再手动逐一发布
+
+11. **重复发布会累积「暂无笔记标题」废草稿**：小红书创作平台在每次进入图文编辑页并发生导航/重渲染时，会自动存若干标题为「暂无笔记标题」的空草稿。用 `draft` 模式重跑多篇后，草稿箱会堆积大量废草稿。清理方法：进「草稿箱」→ 切「图文笔记」tab → 对每个废草稿点 `.draft-actions` 里**最后一个 `.btn`**（编辑/删除中的删除）→ 确认弹窗。⚠️ 确认弹窗的删除按钮是真实 `<button class="...model-footer-confirm-btn draft-delete-popconfirm-btn-footer-confirm">删除</button>`，**必须点这个 `<button>`**；点 footer 容器 `<div class="modal-footer-buttons">`（文本也是「取消\n删除」）是空操作，不会删。弹窗文案含「草稿删除后不可找回」。
 
 ## Resources
 

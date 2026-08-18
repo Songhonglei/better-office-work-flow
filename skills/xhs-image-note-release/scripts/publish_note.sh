@@ -95,7 +95,7 @@ const topics = params.topics
 const MODE = params.mode || 'publish'
 
 // ===== 第1步：创建/复用 task space =====
-const task = await useOrCreateTaskSpace('publish xhs note')
+const task = await useOrCreateTaskSpace('publish xhs note ' + Date.now())
 cliLog('task space: ' + task.id)
 
 // ===== 第2步：打开小红书创作平台 =====
@@ -115,7 +115,7 @@ cliLog('Login status: ' + JSON.stringify(loginCheck))
 
 if (!loginCheck.loggedIn) {
   cliLog('ERROR: 未登录小红书，请先在 ego-lite 中登录')
-  await completeTaskSpace(task.id, { keep: true })
+  await completeTaskSpace(task.id, { keep: false })
   process.exit(1)
 }
 
@@ -149,7 +149,7 @@ await wait(3)
 
 // 检查是否已进入图文编辑页（有 upload input 就说明到了）
 const checkInput = await js(`(() => {
-  return !!document.querySelector('input.upload-input')
+  return !!document.querySelector('input[type="file"][accept*=".png"]')
 })()`)
 uploadReady = checkInput
 
@@ -171,35 +171,62 @@ if (!uploadReady) {
   }
 }
 
-if (uploadReady || await js(`!!document.querySelector('input.upload-input')`)) {
+if (uploadReady || await js(`!!document.querySelector('input[type="file"][accept*=".png"]')`)) {
   cliLog('Successfully entered 图文发布页')
 } else {
   cliLog('WARNING: Could not confirm upload page, continuing anyway...')
 }
 
-// ===== 第4步：上传图片（CDP 批量设置 file input）=====
-cliLog('Uploading ' + filePaths.length + ' files...')
+// ===== 第4步：逐个上传图片 =====
+// 小红书 Web 端对批量 CDP setFileInputFiles 只创建空占位、不真正上传，
+// 改用 ego-browser uploadFile() 单文件循环上传，每次触发真实 change 事件。
+cliLog('Uploading ' + filePaths.length + ' files one by one...')
 
-const doc = await cdp('DOM.getDocument', {})
-const inputNode = await cdp('DOM.querySelector', {
-  nodeId: doc.root.nodeId,
-  selector: 'input.upload-input'
-})
-
-if (!inputNode || !inputNode.nodeId) {
-  cliLog('ERROR: 找不到图片上传 input，页面可能未正确加载')
-  await completeTaskSpace(task.id, { keep: true })
-  process.exit(1)
+for (let i = 0; i < filePaths.length; i++) {
+  const fp = filePaths[i]
+  cliLog('Uploading file ' + (i + 1) + '/' + filePaths.length + ': ' + fp)
+  await uploadFile('input[type="file"][accept*=".png"]', fp)
+  await wait(6)
 }
 
-await cdp('DOM.setFileInputFiles', {
-  files: filePaths,
-  nodeId: inputNode.nodeId
-})
-cliLog('Files uploaded via CDP')
+cliLog('All files selected, waiting for CDN processing...')
+await wait(10)
 
-// 等待图片上传和处理
-await wait(8)
+// 校验图片是否真的上传成功（至少应有 filePaths.length 张来自 xhscdn 的预览图）
+cliLog('Waiting for images to upload to CDN...')
+let uploadOk = false
+let lastVerify = {}
+for (let attempt = 0; attempt < 10; attempt++) {
+  await wait(3)
+  const v = await js(`(() => {
+    const imgs = [...document.querySelectorAll('img')]
+    const cdn = imgs.filter(i => {
+      const s = i.src || ''
+      return s.includes('xhscdn.com') || s.includes('spectrum/')
+    }).length
+    let editCount = 'n/a'
+    for (const l of document.body.innerText.split('\\\\n')) {
+      if (l.includes('图片编辑')) {
+        editCount = l.split('/')[0].split('').filter(c => c >= '0' && c <= '9').join('')
+        break
+      }
+    }
+    return { cdnImages: cdn, editCount: editCount }
+  })()`)
+  lastVerify = v
+  cliLog('Upload verify attempt ' + attempt + ': ' + JSON.stringify(v))
+  if (parseInt(v.cdnImages || 0) >= filePaths.length || parseInt(v.editCount || 0) >= filePaths.length) {
+    uploadOk = true
+    break
+  }
+}
+
+if (!uploadOk) {
+  const cdn = parseInt(lastVerify.cdnImages || 0)
+  cliLog('ERROR: 图片似乎没有正确上传到小红书，CDN 图片数量 ' + cdn + ' < 期望 ' + filePaths.length)
+  await completeTaskSpace(task.id, { keep: false })
+  process.exit(1)
+}
 
 // ===== 第5步：填写标题 =====
 cliLog('Filling title...')
@@ -300,7 +327,7 @@ cliLog('Result: ' + JSON.stringify(publishResult, null, 2))
 
 if (publishResult.error) {
   cliLog('ERROR: ' + publishResult.error)
-  await completeTaskSpace(task.id, { keep: true })
+  await completeTaskSpace(task.id, { keep: false })
   process.exit(1)
 }
 
@@ -310,8 +337,16 @@ if (MODE === 'draft') {
   cliLog('Waiting for draft save...')
   await wait(6)
   const draftN = await js(`(() => {
-    const m = document.body.innerText.match(/草稿箱\\((\\d+)\\)/)
-    return m ? m[1] : 'n/a'
+    let n = 'n/a'
+    for (const l of document.body.innerText.split('\\n')) {
+      if (l.includes('草稿箱')) {
+        const start = l.indexOf('(')
+        const end = l.indexOf(')', start)
+        if (start !== -1 && end !== -1) n = l.slice(start + 1, end)
+        break
+      }
+    }
+    return n
   })()`)
   cliLog('草稿箱 count after save: ' + draftN)
   cliLog('SUCCESS: 已存入草稿箱（请到小红书「草稿箱」自行点发布；不会自动发布）')
