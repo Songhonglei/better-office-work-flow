@@ -2,13 +2,16 @@
 name: xhs-image-note-release
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
-  话题标签、发布等全流程。附带 28 种多样式风格卡片生成器（含 3 种照片背景氛围主题），
+  话题标签、发布（或存草稿）等全流程。支持两种收尾模式：直接发布（_onPublish）与存草稿
+  （_onSave，草稿箱按钮文本为「暂存离开」），用户可要求「发小红书」或「推到草稿箱自己点发布」。
+  附带 28 种多样式风格卡片生成器（含 3 种照片背景氛围主题），
   卡片主题、布局、背景图、遮罩强度、模糊、颗粒等参数均可自由配置。
-  当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖或涉及小红书内容发布时触发此技能。
+  当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖、存草稿、推到草稿箱或涉及小红书内容发布时触发此技能。
   前置依赖：ego-browser (ego-lite) 已安装且正在运行，小红书账号已登录。
+version: 1.6.0
+bins: [node, python3]
 ---
 
-- **Version**: 1.5.2
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow
@@ -45,8 +48,13 @@ description: >
 ```
 创建 task space → 打开创作平台 → 等待 SPA 渲染(15s) → 进入图文发布页(自动兼容 tab/下拉)
 → 上传图片(CDP 批量) → 填标题 → 填正文 → 逐个话题从下拉列表选择
-→ 调用 _onPublish() 发布 → 等待跳转确认 → 清理 task space
+→ 调用 _onPublish() 发布 或 _onSave() 存草稿（由 MODE 决定）→ 校验结果 → 清理 task space
 ```
+
+**收尾模式（MODE）**：
+- `publish`（默认）：调用 `_onPublish()` 直接发布，等待跳转 `note-manage` 确认。
+- `draft`：调用 `_onSave()` 存草稿箱，校验左侧「草稿箱(N)」计数 +1（草稿箱按钮文本是「暂存离开」，不是「存草稿」）。
+用户说「存草稿 / 推到草稿箱 / 自己点发布」时走 `draft` 模式；说「发小红书 / 发布」走 `publish`。
 
 ### 1. 创建 task space 并打开创作平台
 
@@ -174,30 +182,56 @@ for (const topic of topics) {
 
 > **注意**：直接粘贴 `#话题1 #话题2` 只会生成纯文本，不会真正挂载到话题词条。必须从 `#` 触发下拉列表后点击选中。
 
-### 6. 触发发布
+### 6. 触发发布 / 存草稿
 
-小红书的「发布」按钮封装为自定义 Web Component（`<xhs-publish-btn>`），常规选择器或坐标点击无法命中，需直接调用其暴露的发布方法：
+小红书的「发布 / 存草稿」按钮封装为同一个自定义 Web Component（`<xhs-publish-btn>`），常规选择器或坐标点击无法命中，需直接调用其内部方法。**两种收尾模式共用这一个组件**：
 
 ```js
 const host = document.querySelector('xhs-publish-btn')
 // 检查状态
-const disabled = host.getAttribute('submit-disabled')  // 'false' = 可点
+const disabled = host.getAttribute('submit-disabled')   // 'false' = 可点
 const loading = host.getAttribute('submit-loading')     // 'false' = 未加载
-// 触发发布
-host._onPublish()
+const saveDisabled = host.getAttribute('save-disabled')  // 'false' = 可存草稿
+
+if (MODE === 'draft') {
+  // 存草稿模式：调用 _onSave()，不要找「存草稿」按钮——它根本不存在
+  host._onSave()
+} else {
+  // 发布模式：调用 _onPublish()
+  host._onPublish()
+}
 ```
 
-> 若需了解完整的失败方案对比与排查细节，参见 `references/publish-method.md`。
+> ⚠️ **踩坑记录（已验证，2026-08-18）**：小红书根本没有名为「存草稿」的按钮。发布页右下角的按钮文本是**「暂存离开」**（组件属性 `save-text="暂存离开"`、`is-save-draft="true"`），且同样藏在 `<xhs-publish-btn>` 的 **closed Shadow DOM** 内，DOM 遍历、坐标点击、`snapshotText` 全部抓不到文本。正确做法是直接调 `host._onSave()`（发布用 `host._onPublish()`）。若按"存草稿"文本找按钮会永远找不到，页面也不会变化。
 
-### 7. 等待发布完成
+**存草稿校验**：调用 `_onSave()` 后页面不会跳转，而是把笔记存入**当前浏览器本地**（页面提示"草稿存储于当前使用的浏览器本地"）。校验方式——读取左侧导航的「草稿箱(N)」计数，正则 `草稿箱\((\d+)\)` 比较调用前后是否 +1。
 
-调用 `_onPublish()` 后按钮进入 loading，约 5-10 秒后页面会重置并出现 `published=true` URL 参数。验证：
+**发布校验**：调用 `_onPublish()` 后按钮进入 loading，约 5-10 秒后跳转 `note-manage`，`pageInfo().url.includes('note-manage')` 即成功。
+
+> 若需了解完整的失败方案对比与 `_onPublish`/`_onSave` 技术细节，参见 `references/publish-method.md`。
+
+### 7. 等待完成并校验
+
+按 MODE 不同校验方式不同：
+
+**发布模式**：调用 `_onPublish()` 后按钮进入 loading，约 5-10 秒后页面重置并出现 `published=true` URL 参数或跳转 `note-manage`。
 
 ```js
 const info = await pageInfo()
 if (info.url.includes('published=true') || info.url.includes('note-manage')) {
   cliLog('SUCCESS: 发布成功！')
 }
+```
+
+**存草稿模式**：调用 `_onSave()` 后页面**不跳转**（只是存入当前浏览器本地草稿箱），需靠「草稿箱(N)」计数 +1 来验证。
+
+```js
+await wait(6)
+const draftN = await js(`(() => {
+  const m = document.body.innerText.match(/草稿箱\\((\\d+)\\)/)
+  return m ? m[1] : 'n/a'
+})()`)
+cliLog('草稿箱 count: ' + draftN)  // 与调用前对比，+1 即成功
 ```
 
 ### 8. 清理
@@ -218,9 +252,12 @@ IMAGES="img1.png,img2.png,img3.png"
 TITLE="标题"
 BODY='正文内容'
 TOPICS="话题1,话题2,话题3"
+MODE="publish"   # publish=直接发布（默认）；draft=存草稿箱（自己点发布）
 
 bash ~/.workbuddy/skills/xhs-image-note-release/scripts/publish_note.sh
 ```
+
+> **draft 模式说明**：`MODE="draft"` 时脚本走 `_onSave()` 存草稿箱，不实际发布。用户可在小红书创作平台「草稿箱」里自行检查并点发布。多笔记场景建议先全部存草稿，再手动间隔 ≥5 分钟逐一发布以避风控。
 
 ### 先用本技能生成卡片，再发布
 
@@ -434,6 +471,8 @@ done
 5. **权限设置**：发布前如需设置权限（公开/仅自己可见），在填正文后、点发布前操作
 6. **标题特殊字符**：脚本中 TITLE 变量会插入 JS 单引号字符串，**严禁**包含单引号，否则会中断脚本
 7. **正文特殊字符**：脚本中 BODY 变量会插入 JS 模板字符串，**严禁**包含反引号（``` ` ```）和 `${`，否则会中断脚本
+8. **存草稿模式（draft）**：小红书**没有「存草稿」按钮**，右下角文字是「暂存离开」，藏在 `<xhs-publish-btn>` 闭渲染组件内，DOM/坐标都抓不到；必须调 `host._onSave()`。草稿存于当前浏览器本地，`draft` 模式不会自动发布，需用户进「草稿箱」自行点发布。校验用「草稿箱(N)」计数 +1（正则 `草稿箱\((\d+)\)`）
+9. **多笔记发布频率**：同一账号连续发多篇易触发风控，建议每篇间隔 ≥5 分钟，或先用 `draft` 模式全部存草稿、再手动逐一发布
 
 ## Resources
 
@@ -441,4 +480,4 @@ done
 - `scripts/publish_note.sh` — 一键发布脚本，修改 4 个参数即可复用
 
 ### references/
-- `references/publish-method.md` — 完整方法文档，含失败方案对比表和技术原理详解。**按需加载**：当需要了解发布按钮各失败方案的完整对比、或需要排查发布相关问题时阅读此文件；正常发布流程无需提前加载
+- `references/publish-method.md` — 完整方法文档，含 `_onPublish`/`_onSave` 两种收尾方案的失败方案对比表、技术原理与「暂存离开」坑点详解。**按需加载**：当需要了解发布/存草稿按钮各失败方案的完整对比、或需要排查发布/存草稿相关问题时阅读此文件；正常流程无需提前加载

@@ -136,13 +136,67 @@ host._onPublish()
 
 **原理**：`<xhs-publish-btn>` 是一个 Web Component（自定义元素），其原型链上暴露了 `_onPublish` 和 `_onSave` 方法。这些方法绑定在组件实例上，通过 `host._onPublish()` 可以直接调用，绕过 Shadow DOM 的封装。
 
-**发现方法**：通过 `Object.getOwnPropertyNames(Object.getPrototypeOf(host))` 列出组件原型上的所有方法名，发现 `_onPublish`、`_onSave` 等内部方法。
+**发现方法**：通过 `Object.getOwnPropertyNames(Object.getPrototypeOf(host))` 列出组件原型上的所有方法名，发现 `_onPublish`、`_onSave` 等内部方法。**`_onPublish` 与 `_onSave` 是同一个 `<xhs-publish-btn>` 组件上的兄弟方法**——发布和存草稿共用这一个按钮组件，只是触发的不同方法。
 
 #### 验证发布状态
 
 - 按钮进入 loading：`host.getAttribute('submit-loading')` 变为 `'true'`
 - 发布成功：页面约 5-10 秒后跳转到 `https://creator.xiaohongshu.com/publish/note-manage`
 - 检查方式：`pageInfo().url.includes('note-manage')`
+
+### 7b. 存草稿模式（_onSave 方法）
+
+#### 需求场景
+
+用户要求「存草稿 / 推到草稿箱 / 自己点发布」时走此模式：笔记进入小红书草稿箱，由用户自行检查后点发布。多笔记批量发布前应全部存草稿，再手动间隔 ≥5 分钟逐一发布，避风控。
+
+#### ⚠️ 关键坑点：根本没有「存草稿」按钮
+
+- 发布页右下角的按钮**文本不是「存草稿」，而是「暂存离开」**（组件属性为 `save-text="暂存离开"`、`is-save-draft="true"`、`save-disabled="false"`）。
+- 这个按钮同样在 `<xhs-publish-btn>` 的 **closed Shadow DOM** 内：DOM 遍历、`snapshotText` 正则匹配、`click('@N')`、坐标点击全部抓不到文本/节点。
+- 若按"存草稿"文本去搜索点击，永远找不到，页面也不会有任何变化。
+- **正确做法**：直接调组件实例方法 `host._onSave()`（发布用 `host._onPublish()`）。
+
+```js
+const host = document.querySelector('xhs-publish-btn')
+
+// 检查存草稿按钮状态
+const saveDisabled = host.getAttribute('save-disabled')  // 'false' = 可存
+if (saveDisabled === 'true') {
+  throw new Error('Save-draft button is disabled')
+}
+
+// 直接调用内部存草稿方法（不是找按钮点）
+host._onSave()
+```
+
+**发现方法**：与 `_onPublish` 同源——`Object.getOwnPropertyNames(Object.getPrototypeOf(host))` 列出原型方法，其中既有 `_onPublish` 也有 `_onSave`；进一步用 `Object.getOwnPropertyNames(host)` 可查实例自有方法，确认 `_onSave` 绑定在组件实例上。
+
+#### 校验存草稿状态（页面不跳转）
+
+调用 `_onSave()` 后页面**不会跳转**，而是把笔记存入**当前浏览器本地**（页面会提示"草稿存储于当前使用的浏览器本地"）。不能用 URL 变化验证，必须靠「草稿箱(N)」计数 +1：
+
+- 读取左侧导航文案，正则 `草稿箱\((\d+)\)`
+- 调用前后比较，计数 +1 即成功
+
+```js
+await wait(6)
+const draftN = await js(`(() => {
+  const m = document.body.innerText.match(/草稿箱\\((\\d+)\\)/)
+  return m ? m[1] : 'n/a'
+})()`)
+// draftN 与调用前相比 +1 即校验通过
+```
+
+#### _onPublish vs _onSave 失败方案对比（合并）
+
+| 方法 | 发布 `_onPublish` | 存草稿 `_onSave` |
+|---|---|---|
+| 按文本找按钮（"发布"/"存草稿"） | 无文本节点可匹配 | ❌ 连文字都是「暂存离开」，更找不到 |
+| `host.shadowRoot.querySelector(...)` | `null`（closed shadow） | 同左 |
+| `click('@N')` via snapshotText | 无 ref | 同左 |
+| 坐标 `Input.dispatchMouseEvent` | 不触发 Vue 事件 | 同左 |
+| **直接调实例方法** | ✅ `host._onPublish()` | ✅ `host._onSave()` |
 
 ### 8. 清理
 

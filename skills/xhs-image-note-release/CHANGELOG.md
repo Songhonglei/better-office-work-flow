@@ -3,6 +3,14 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.6.0 (2026-08-18)
+
+- **Feature**: 新增**存草稿模式**（draft）。用户要求「存草稿 / 推到草稿箱 / 自己点发布」时走此模式。
+  - `scripts/publish_note.sh` 新增 `MODE` 参数：`publish`（默认，直接发布）/` draft`（存草稿箱）。
+  - 收尾步骤按 `MODE` 分支：发布调 `host._onPublish()`，存草稿调 `host._onSave()`。
+  - 存草稿校验改为「草稿箱(N)」计数 +1（正则 `草稿箱\((\d+)\)`），因为草稿模式页面不跳转。
+- **Fix / Pitfall**: 固化已验证坑点——小红书**没有「存草稿」按钮**，发布页右下角文字是「暂存离开」，且同样藏在 `<xhs-publish-btn>` 闭渲染组件内，DOM/坐标/`snapshotText` 全部抓不到；必须直接调实例方法 `_onSave()`。SKILL.md 第 6、7 步与 `references/publish-method.md` 第 7b 节同步记录原理与失败方案对比表。
+
 ### v1.5.2 (2026-08-02)
 
 - **Fix**: `card_generator.py` 的 `image-text` 布局 footer 不再固定 `height * 0.82`，而是根据文字块实际底部动态计算，避免账号署名和装饰横线与正文最后一行重叠。
@@ -49,7 +57,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
 
 - **Audit Fix**: UGLIC + skill-release-audit 两轮审计发现的全部 ERR/WARN 修复。
 - **Fix (I1/U1)**: SKILL.md body 版本号 `1.3.0` 与 frontmatter `1.3.2` 不一致 → 统一为 `1.3.3`。
-- **Fix (L1/C1)**: 删除 `NODE_BIN`/`NODE_PATH` 死代码（硬编码的用户 home 路径，全文件无引用）。
+- **Fix (L1/C1)**: 删除 `NODE_BIN`/`NODE_PATH` 死代码（硬编码的用户级绝对路径，全文件无引用）。
 - **Fix (L2)**: 清理 `build_svg()` 中废弃的 `gradient_defs`/`gradient_id` 逻辑（SVG 侧渐变从未生效，实际由 CSS 处理）。
 - **Fix (U2)**: 删除 4 个 `--show-*` 无操作 CLI 标志（`action="store_true", default=True` 永远为 True），只保留 `--hide-*`。
 - **Fix (U3)**: Dependencies 表新增 Google Chrome / Chromium 依赖声明。

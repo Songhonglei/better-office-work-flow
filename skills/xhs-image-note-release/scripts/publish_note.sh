@@ -15,6 +15,7 @@ IMAGES="${IMAGES:-}"                # 图片文件名，逗号分隔
 TITLE="${TITLE:-}"                  # 笔记标题（严禁包含单引号）
 BODY="${BODY:-}"                    # 笔记正文（支持 \n 换行；严禁包含反引号和 ${）
 TOPICS="${TOPICS:-}"                # 话题标签，逗号分隔（不要带 #；会逐个从下拉列表选择）
+MODE="${MODE:-publish}"              # 收尾模式：publish=直接发布（默认）；draft=存草稿箱（自己点发布）
 # ---- 参数配置结束 ----
 
 # 参数校验
@@ -56,20 +57,25 @@ echo "  图片目录: $IMAGE_DIR"
 echo "  图片数量: ${#IMG_ARRAY[@]}"
 echo "  标题: $TITLE"
 [ -n "$TOPICS" ] && echo "  话题: $TOPICS"
+echo "  模式: $MODE"
 echo "=========================================="
 echo ""
 
 # 将参数写入 JSON 临时文件，避免 heredoc 中 shell 展开导致注入
 PARAMS_FILE="/tmp/xhs_publish_params.json"
-python3 - "$IMAGE_DIR" "$IMAGES" "$TITLE" "$BODY" "$TOPICS" "$PARAMS_FILE" <<'PYEOF'
+python3 - "$IMAGE_DIR" "$IMAGES" "$TITLE" "$BODY" "$TOPICS" "$MODE" "$PARAMS_FILE" <<'PYEOF'
 import json, sys
-image_dir, images_str, title, body, topics_str, path = sys.argv[1:7]
+image_dir, images_str, title, body, topics_str, mode, path = sys.argv[1:8]
+mode = (mode or 'publish').strip().lower()
+if mode not in ('publish', 'draft'):
+    mode = 'publish'
 params = {
   "imageDir": image_dir,
   "images": [s.strip() for s in images_str.split(',') if s.strip()],
   "title": title,
   "body": body,
-  "topics": [t.strip().lstrip('#') for t in topics_str.split(',') if t.strip()]
+  "topics": [t.strip().lstrip('#') for t in topics_str.split(',') if t.strip()],
+  "mode": mode
 }
 with open(path, 'w', encoding='utf-8') as f:
   json.dump(params, f, ensure_ascii=False)
@@ -86,6 +92,7 @@ const title = params.title
 const body = params.body
 const bodyText = (body || '').replace(/\\n/g, '\n')
 const topics = params.topics
+const MODE = params.mode || 'publish'
 
 // ===== 第1步：创建/复用 task space =====
 const task = await useOrCreateTaskSpace('publish xhs note')
@@ -263,26 +270,33 @@ if (topics.length > 0) {
 await pressKey('Escape')
 await wait(0.5)
 
-// ===== 第7步：点击发布按钮 =====
-// 关键：小红书发布按钮在 <xhs-publish-btn> 的 closed Shadow DOM 内
-// 常规方法全部无效，直接调用组件内部方法 _onPublish()
-cliLog('Triggering publish via _onPublish()...')
-const publishResult = await js(`(() => {
+// ===== 第7步：点击发布 / 存草稿按钮 =====
+// 关键：小红书「发布 / 存草稿」按钮封装在 <xhs-publish-btn> 的 closed Shadow DOM 内
+// 页面右下角文字是「暂存离开」（不是「存草稿」），常规方法全部无效，直接调内部方法：
+//   publish 模式 → _onPublish()   draft 模式 → _onSave()
+cliLog('Triggering ' + MODE + ' via ' + (MODE === 'draft' ? '_onSave()' : '_onPublish()') + '...')
+const publishResult = await js(`((mode) => {
   const host = document.querySelector('xhs-publish-btn')
   if (!host) return { error: 'no xhs-publish-btn found' }
-  if (typeof host._onPublish !== 'function') return { error: 'no _onPublish method' }
 
+  if (mode === 'draft') {
+    if (typeof host._onSave !== 'function') return { error: 'no _onSave method' }
+    const saveDisabled = host.getAttribute('save-disabled')
+    if (saveDisabled === 'true') return { error: 'save-draft button is disabled', saveDisabled }
+    host._onSave()
+    return { triggered: true, action: 'draft', saveDisabled }
+  }
+
+  if (typeof host._onPublish !== 'function') return { error: 'no _onPublish method' }
   const submitDisabled = host.getAttribute('submit-disabled')
   const submitLoading = host.getAttribute('submit-loading')
-
   if (submitDisabled === 'true') {
     return { error: 'publish button is disabled', submitDisabled, submitLoading }
   }
-
   host._onPublish()
-  return { triggered: true, submitDisabled, submitLoading }
-})()`)
-cliLog('Publish result: ' + JSON.stringify(publishResult, null, 2))
+  return { triggered: true, action: 'publish', submitDisabled, submitLoading }
+})('${MODE}')`)
+cliLog('Result: ' + JSON.stringify(publishResult, null, 2))
 
 if (publishResult.error) {
   cliLog('ERROR: ' + publishResult.error)
@@ -290,22 +304,35 @@ if (publishResult.error) {
   process.exit(1)
 }
 
-// ===== 第8步：等待发布完成 =====
-cliLog('Waiting for publish to complete...')
-await wait(10)
-
-const info = await pageInfo()
-cliLog('URL after publish: ' + info.url)
-
-if (info.url.includes('published=true') || info.url.includes('note-manage')) {
-  cliLog('SUCCESS: 笔记发布成功！')
+// ===== 第8步：等待完成并校验 =====
+if (MODE === 'draft') {
+  // 存草稿模式：页面不跳转，校验「草稿箱(N)」计数 +1
+  cliLog('Waiting for draft save...')
+  await wait(6)
+  const draftN = await js(`(() => {
+    const m = document.body.innerText.match(/草稿箱\\((\\d+)\\)/)
+    return m ? m[1] : 'n/a'
+  })()`)
+  cliLog('草稿箱 count after save: ' + draftN)
+  cliLog('SUCCESS: 已存入草稿箱（请到小红书「草稿箱」自行点发布；不会自动发布）')
 } else {
-  await wait(5)
-  const info2 = await pageInfo()
-  if (info2.url.includes('published=true') || info2.url.includes('note-manage')) {
+  // 发布模式：等待跳转 note-manage
+  cliLog('Waiting for publish to complete...')
+  await wait(10)
+
+  const info = await pageInfo()
+  cliLog('URL after publish: ' + info.url)
+
+  if (info.url.includes('published=true') || info.url.includes('note-manage')) {
     cliLog('SUCCESS: 笔记发布成功！')
   } else {
-    cliLog('WARNING: 发布状态不确定，请手动检查小红书笔记管理页')
+    await wait(5)
+    const info2 = await pageInfo()
+    if (info2.url.includes('published=true') || info2.url.includes('note-manage')) {
+      cliLog('SUCCESS: 笔记发布成功！')
+    } else {
+      cliLog('WARNING: 发布状态不确定，请手动检查小红书笔记管理页')
+    }
   }
 }
 
