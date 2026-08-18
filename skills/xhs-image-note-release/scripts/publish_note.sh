@@ -15,7 +15,7 @@ IMAGES="${IMAGES:-}"                # 图片文件名，逗号分隔
 TITLE="${TITLE:-}"                  # 笔记标题（严禁包含单引号）
 BODY="${BODY:-}"                    # 笔记正文（支持 \n 换行；严禁包含反引号和 ${）
 TOPICS="${TOPICS:-}"                # 话题标签，逗号分隔（不要带 #；会逐个从下拉列表选择）
-MODE="${MODE:-publish}"              # 收尾模式：publish=直接发布（默认）；draft=存草稿箱（自己点发布）
+MODE="${MODE:-publish}"              # 收尾模式：publish=直接发布；draft=存草稿箱；stage=只准备好内容停在页面（自己检查发布）
 # ---- 参数配置结束 ----
 
 # 参数校验
@@ -67,7 +67,7 @@ python3 - "$IMAGE_DIR" "$IMAGES" "$TITLE" "$BODY" "$TOPICS" "$MODE" "$PARAMS_FIL
 import json, sys
 image_dir, images_str, title, body, topics_str, mode, path = sys.argv[1:8]
 mode = (mode or 'publish').strip().lower()
-if mode not in ('publish', 'draft'):
+if mode not in ('publish', 'draft', 'stage'):
     mode = 'publish'
 params = {
   "imageDir": image_dir,
@@ -297,7 +297,25 @@ if (topics.length > 0) {
 await pressKey('Escape')
 await wait(0.5)
 
-// ===== 第7步：点击发布 / 存草稿按钮 =====
+// ===== 第7步：收尾（按 MODE 分支）=====
+if (MODE === 'stage') {
+  // stage 模式：不触发任何保存/发布动作，页面保持原样，用户自行检查后手动点发布
+  cliLog('STAGE MODE: 内容已全部准备好，页面保持不动，等待用户自行检查和发布')
+  cliLog('  - 图片已上传: ' + filePaths.length + ' 张')
+  cliLog('  - 标题: ' + title)
+  cliLog('  - 正文长度: ' + bodyText.length + ' 字')
+  cliLog('  - 话题: ' + (topics.length > 0 ? topics.join(', ') : '无'))
+
+  // 截图存档
+  const stageShot = await captureScreenshot()
+  cliLog('Stage screenshot: ' + stageShot)
+
+  // 保持 task space 和页面不关闭
+  cliLog('SUCCESS: 页面已准备好，task space 保持开启，请到 ego-browser 中检查并手动发布')
+  // 不调 completeTaskSpace，页面保持
+} else {
+
+// ===== 发布/存草稿模式：点击发布 / 存草稿按钮 =====
 // 关键：小红书「发布 / 存草稿」按钮封装在 <xhs-publish-btn> 的 closed Shadow DOM 内
 // 页面右下角文字是「暂存离开」（不是「存草稿」），常规方法全部无效，直接调内部方法：
 //   publish 模式 → _onPublish()   draft 模式 → _onSave()
@@ -378,6 +396,8 @@ cliLog('Final screenshot: ' + shot)
 // ===== 第9步：清理 =====
 await completeTaskSpace(task.id, { keep: false })
 cliLog('Task completed, space cleaned up')
+
+} // end of non-stage branch
 EOF
 
 # 清理参数临时文件

@@ -2,13 +2,15 @@
 name: xhs-image-note-release
 description: >
   小红书图文笔记自动发布技能。通过 ego-browser 自动化完成图片上传、标题填写、正文编辑、
-  话题标签、发布（或存草稿）等全流程。支持两种收尾模式：直接发布（_onPublish）与存草稿
-  （_onSave，草稿箱按钮文本为「暂存离开」），用户可要求「发小红书」或「推到草稿箱自己点发布」。
+  话题标签、发布（或存草稿）等全流程。支持三种收尾模式：直接发布（_onPublish）、存草稿
+  （_onSave，草稿箱按钮文本为「暂存离开」）、以及 stage 模式（只准备好内容停在页面，不触发
+  任何保存/发布动作，用户自行检查后手动点发布），用户可要求「发小红书」或「推到草稿箱自己点发布」
+  或「准备好页面我自己发布」。
   附带 28 种多样式风格卡片生成器（含 3 种照片背景氛围主题），
   卡片主题、布局、背景图、遮罩强度、模糊、颗粒等参数均可自由配置。
   当用户要求发小红书、发布图文笔记、上传到小红书、小红书发帖、存草稿、推到草稿箱或涉及小红书内容发布时触发此技能。
   前置依赖：ego-browser (ego-lite) 已安装且正在运行，小红书账号已登录。
-version: 1.6.3
+version: 1.7.0
 bins: [node, python3]
 ---
 
@@ -255,7 +257,7 @@ IMAGES="img1.png,img2.png,img3.png"
 TITLE="标题"
 BODY='正文内容'
 TOPICS="话题1,话题2,话题3"
-MODE="publish"   # publish=直接发布（默认）；draft=存草稿箱（自己点发布）
+MODE="publish"   # publish=直接发布；draft=存草稿箱；stage=只准备好内容停在页面（自己检查发布）
 
 bash ~/.workbuddy/skills/xhs-image-note-release/scripts/publish_note.sh
 ```

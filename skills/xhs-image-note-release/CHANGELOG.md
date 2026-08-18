@@ -3,6 +3,14 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.7.0 (2026-08-18)
+
+- **Feature**: 新增 **stage 模式**（`MODE=stage`）。用户要求「准备好页面我自己发布 / 不要暂存离开 / 留在页面就行」时走此模式。
+  - 上传图片 + 填标题正文 + 挂话题标签后**原地停下**，不触发 `_onSave()` 也不触发 `_onPublish()`。
+  - 页面和 task space **保持开启**（不调 `completeTaskSpace`），用户到 ego-browser 中自行检查后手动点发布。
+  - 每次执行 `stage` 模式新开一个独立页面（unique task space name + `Date.now()`），互不干扰。
+  - 适用场景：用户不信任草稿箱（草稿存浏览器本地不跨设备）、想亲眼确认内容无误后再点发布。
+
 ### v1.6.3 (2026-08-18)
 
 - **Docs**: SKILL.md「注意事项」新增第 11 条——重复发布/存草稿会累积「暂无笔记标题」废草稿，并记录清理方法与确认弹窗的**真实删除按钮**选择器。
