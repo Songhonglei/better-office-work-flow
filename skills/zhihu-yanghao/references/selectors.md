@@ -3,10 +3,10 @@
 ## 知乎关键选择器 / 按钮
 | 目标 | 选择器 / 判定 | 说明 |
 |---|---|---|
-| 赞同按钮 | `button[aria-label*="赞同"]` | **⚠️ 8/11 实测旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 已失效**（知乎改版）；aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 `trim()`**）；`.click()` 触发点赞 |
+| 赞同按钮 | `button[aria-label*=赞同]` | **⚠️ 8/11 实测旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 已失效**（知乎改版）；aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 `trim()`**）；`.click()` 触发点赞。**注意**：`button[aria-label*="赞同"]` 带引号写法在 `js()` 二次求值时引号会错配报 `SyntaxError`，脚本里一律用无引号 `button[aria-label*=赞同]`（v1.2.1 修复） |
 | 已赞同判定 | `b.classList.contains('is-active')`（class 含 `VoteButton is-active`） | 再点会**取消**点赞（toggle 行为）；点赞前必须判此跳过，否则把已赞取消。innerText 含「已赞同」也可但不如 class 稳 |
 | ⚠️ 按钮 innerText 零宽字符 | `/赞同/.test(b.innerText)` 可命中，但 `b.innerText.trim()==='赞同 87'` 命中 0 | **8/12 实测**：innerText 实际为 `"\u200b 已赞同 87"`（前导零宽字符 `\u200b` + 空格）；**一律用 `aria-label` + `trim()` 做精确匹配**，绝不依赖 innerText 等值 |
-| 回答容器 | `[data-zop]` | 每个含 `itemId`（JSON.parse 取），用于去重遍历前 10 个作为随机选赞候选池 |
+| 回答容器 | `[data-zop]` | 每个含 `itemId`（JSON.parse 取），用于去重遍历前 5 |
 | Draft.js 编辑器 | `.public-DraftEditor-content` | fillInput 目标；`\n\n` 分段保留段落 |
 | 「写回答」按钮 | `button` 且 `innerText.includes('写回答')` | 文本前有零宽字符 `\u200b`，**不能**用 `===` |
 | 「查看我的回答」按钮 | `button` 且 innerText 含「查看我的回答」 | 出现 = 该问题已答过，5 天内避开 |
