@@ -273,12 +273,31 @@
     cliLog('answer disabled for this shift')
   }
 
-  // ---------- 7. 验证未折叠 ----------
+  // ---------- 7. 验证未折叠（带 retry：刚发布的 answer 索引可能滞后返回 404） ----------
   if (aid) {
-    const api = await serverFetch('https://www.zhihu.com/api/v4/answers/' + aid)
-    const raw = (api || '').toString()
-    const i1 = raw.indexOf('is_collapsed')
-    cliLog('API_VERIFY is_collapsed=' + (i1 >= 0 ? raw.substr(i1, 24) : '?'))
+    let collapsed = '?'
+    let raw = ''
+    const MAX_TRIES = 5
+    for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
+      try {
+        raw = (await serverFetch('https://www.zhihu.com/api/v4/answers/' + aid) || '').toString()
+        const i1 = raw.indexOf('is_collapsed')
+        if (i1 >= 0) {
+          collapsed = raw.substr(i1, 24)
+          cliLog('API_VERIFY attempt ' + attempt + ' is_collapsed=' + collapsed)
+          break
+        }
+        cliLog('API_VERIFY attempt ' + attempt + ': is_collapsed not in body yet (index lag), retrying...')
+      } catch (e) {
+        cliLog('API_VERIFY attempt ' + attempt + ' ERR: ' + (e && e.message ? e.message : String(e)))
+      }
+      if (attempt < MAX_TRIES) {
+        const gap = 10 + Math.floor(Math.random() * 6) // 10-15s 随机间隔，等索引跟上
+        cliLog('API_VERIFY wait ' + gap + 's before retry')
+        await wait(gap)
+      }
+    }
+    cliLog('API_VERIFY_FINAL is_collapsed=' + collapsed)
   }
 
   // ---------- 8. 可选互动：收藏 / 关注问题 / 评论 ----------

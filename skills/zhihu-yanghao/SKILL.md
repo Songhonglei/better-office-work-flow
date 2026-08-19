@@ -64,7 +64,7 @@ CONFIG=/path/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
 # 指定问题覆盖（跳过自动选题）
 SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
 ```
-脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停」。详细 env 与配置见 references/workflow.md。
+脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
 
 ### 旧版单脚本（仍可用，按需）
 - `scripts/like_top5.js`：对指定问题在前 10 个回答里随机选 3–5 个点赞（env: `QID`，可选 `POOL`/`LIKE_MIN`/`LIKE_MAX` 覆盖默认）。
