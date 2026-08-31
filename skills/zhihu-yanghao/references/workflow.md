@@ -8,14 +8,72 @@
 1. 复制模板：`cp config.example.json config.json`（config.json 不纳入版本库，按你账号改）。
 2. 关键字段：
    - `account`：知乎账号 ID（如 `kong-you-77`），用于日报/主页验证。
-   - `topic_pool`：全局话题池（数组）。三班按「日序号 + 班次偏移」轮转取关键词，用户随时改这里即换话题。
-   - `answer_style`：回答字数区间与视角提示（LLM 写回答时参考）。
+   - **`vertical_focus`**（v1.3.0）：垂直度收敛配置。`primary` = 只养的 2 个领域（当前「趣味历史」+「人文心理」）；`keyword_hints` = 各领域关键词，写作时自然融入 2–3 个帮算法打标签。**🚫 不在 `primary` 之外的话题下写回答**，否则垂直度永远点不亮。
+   - `topic_pool`：全局话题池（数组）。三班按「日序号 + 班次偏移」轮转取关键词。历史类与人文类**交替排列**，保证每班取到的 3 个词横跨两个垂直领域。
+   - `answer_style`：标准回答字数区间与视角提示（LLM 写回答时参考）。
+   - **`deep_answer`**（v1.3.0）：深度版配置。`frequency: "weekly"`；`mode` = `auto`（用户邀请优先 + 每周随机兜底）/ `invite`（仅用户邀请）/ `random`（仅自动随机）；`min_words`/`max_words` = 800–1200；`requirements` = 硬料 + 对比结构 + 可操作结论三项。
+   - **`influence`**（v1.3.0）：创作影响力规范。`hook`（反直觉观点拉评论）、`actionable`（清单/框架拉收藏）、`cta`（结尾轻量引导）、`comment_reply`（发布后 24h 内回评论）。
+   - **`moments`**（v1.3.0）：想法/动态配置。`per_week` = 每周条数（默认 4）；`min_words`/`max_words` = 50–150；`topics` = 内容方向。
    - `shifts`：三个班次，每班含：
      - `enabled`：是否启用该班。
      - `time`：建议触发时间（自动化调度用）。
      - `answer`：该班是否写 1 回答。
-     - `interactions`：`{ like, collect, follow, comment }` 数量/开关——**收藏/关注/评论是否做、做多少，全由你在这里配**（comment 默认 false，实验性）。
+     - `interactions`：`{ like, collect, follow, comment }`——`like` 为点赞配置：**整数 `5`（固定 5 个）或对象 `{"pool":10,"min":3,"max":5}`（前 10 个候选随机选 3–5，推荐自然化）**；`collect`/`follow`/`comment` 为开关（comment 默认 false，实验性）。
 3. 改完保存即可，run_shift.js 下次运行自动读最新配置。
+
+## 深度版怎么触发（v1.3.0）
+深度版**不需要额外脚本**，走的是同一套 `run_shift.js` 流程，区别只在正文生成规范：
+
+| 触发方式 | 怎么发生 | 处理 |
+|---|---|---|
+| **invite（用户邀请）** | 用户说「写深度版」「这篇写深一点」「来篇长的」 | 本班按 `deep_answer` 规范生成 800–1200 字正文，再跑 run_shift.js |
+| **random（每周随机）** | 用户没提，本周还没出过深度版 | 本周随机挑 1 班，按深度版规范写 |
+| **mode 取值** | `auto`（两者结合，默认）/ `invite`（只认邀请）/ `random`（只认自动） | 改 `config.deep_answer.mode` |
+
+**执行要点**：
+- 深度版同样受风控红线约束（单班 ≤ 1 回答、发布前 90s 模拟阅读 + 60s 等待）。
+- 每周不超过 1 篇深度版即可——宁缺毋滥，硬凑的深度版反而拉低优质分。
+- 深度版发布后**必须 24h 内回评论**（`config.influence.comment_reply`），否则浪费了内容质量带来的互动窗口。
+
+## 发想法 / 动态（v1.3.0，已自动化 ✅）
+想法是提升**关注者亲密度**（月更维度）性价比最高的动作：短、频、轻，不需要深度。
+
+```
+# 1) 写正文（50-150 字）+ 参数文件
+echo '想法正文' > /tmp/moment.txt
+cat > /tmp/zhihu_moment_params.json <<'EOF'
+{ "contentFile": "/tmp/moment.txt", "dryRun": true }
+EOF
+
+# 2) 跑（dryRun=true 只填不发布，建议新机器首次先这样验证）
+ego-browser nodejs < scripts/post_moment.js
+```
+
+**选择器（2026-08-31 实测）**：
+| 元素 | 选择器 |
+|---|---|
+| 入口按钮 | `button` 文本含 **发想法**（首页顶部，class 动态） |
+| 编辑器 | **`.public-DraftEditor-content`**（与回答编辑器同一类，fillInput 直接复用） |
+| 发布按钮 | 从编辑器向上遍历祖先，取 `innerText.trim() === '发布'` 的 button |
+
+**参数**（`/tmp/zhihu_moment_params.json`，env 可传 `CONTENT` / `CONTENT_FILE` / `DRY_RUN`）：
+- `content`：正文字符串；`contentFile`：正文文件绝对路径（二者取一，优先 `content`）。
+- `configPath`：可选，用于读 `moments` 字数区间做长度提示（超出只 WARN 不阻断）。
+- `dryRun`：**默认 true（fail-safe，只填不发布）**；实发必须显式写 `"dryRun": false`。新机器或首次使用建议先用默认跑一遍确认。
+
+**风控**：想法属创作内容，两条之间**间隔 ≥ 5 分钟**；单次任务只发 1 条。脚本内置发布前 30s 等待。
+
+**失败处理**：
+- `PUBLISH_CLICK` 不是 `clicked` → **不要重试**（避免累积卡死草稿），人工检查。
+- `FILL_FAILED` 报 `Element not found` → 先查登录态（页面是否出现「登录/注册」）。
+
+**⚠️ 校验必须用 CLI，不能信浏览器侧**（2026-08-31 实测）：
+发布成功后弹窗会**重置为空白编辑器**，脚本里的 `VERIFY_PAGE_ONLY` 仍会报 `editorRemaining: 1`——这是**假阴性**，据此判定失败会误判。
+权威校验：
+```
+zhihu-cli me contents --type pin --limit 3
+```
+注意想法在 API 里的内容类型是 **`pin`**（不是 moment）。`--type` 只支持 `all / answer / article / zvideo / pin / question`。
 
 ## 两种调用方式
 方式一（推荐，文件直读）：把脚本内容喂给 ego-browser：
@@ -30,29 +88,37 @@ EOF
 ```
 
 ## 推荐：三班编排（run_shift.js）
-一个命令跑完一个班的全部动作，配置全在 config.json：
+一个命令跑完一个班的全部动作，配置全在 config.json。本环境用**参数文件**方式（ego-browser 不透传 env）：
 ```
-# 早班：按 config 轮转话题 + 写1回答 + 仅点赞（依 config.interactions）
-CONFIG=/绝对路径/config.json SHIFT=morning ego-browser nodejs < scripts/run_shift.js
+# 1) 写参数文件（shift/qid/contentFile/configPath 等），见下方 schema
+cat > /tmp/zhihu_shift_params.json <<'EOF'
+{ "shift": "morning", "qid": "2070982459156424668",
+  "contentFile": "/abs/answer.txt",
+  "configPath": "/abs/config.json" }
+EOF
 
-# 午班：写1回答 + 点赞 + 收藏 + 关注（依 config.interactions）
-CONFIG=/绝对路径/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
-
-# 晚班：指定 QID 覆盖自动选题（适合你想手动定点某问题）
-SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
+# 2) 跑（不带 env，脚本自动读参数文件）
+ego-browser nodejs < scripts/run_shift.js
 ```
-> ⚠️ **环境变量注意（重要）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃，且 `cwd` 锁死为 `/`），上面的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 会跑不起来、脚本内相对路径也找不到。可靠写法见 SKILL.md「运行模式」：用 heredoc 在脚本内 `process.env.X=...` 注入、用绝对路径 `eval` 主脚本。
+env 写法（其他机器若透传 env 可用）：`SHIFT=morning CONFIG=/abs/config.json ego-browser nodejs < scripts/run_shift.js`。
+`run_shift.js` 参数（**env 优先，回退参数文件**）：
+- **env 方式**（部分 ego-browser 构建不透传 shell env，见下）：`CONFIG` / `SHIFT` / `QID` / `CONTENT` / `CONTENT_FILE` / `KW` / `LIMIT` / `COMMENT_TEXT`。
+- **参数文件方式（推荐，env 不可用时）**：把下列 JSON 写到 `/tmp/zhihu_shift_params.json`，再 `ego-browser nodejs < scripts/run_shift.js`（不传 env）：
+  ```json
+  {
+    "shift": "morning|noon|evening",
+    "qid": "2070982459156424668",
+    "contentFile": "/abs/answer.txt",
+    "configPath": "/abs/config.json",
+    "kw": "历史,神话",
+    "limit": 25,
+    "commentText": "评论内容"
+  }
+  ```
 
-`run_shift.js` env 变量：
-- `CONFIG`：配置文件路径（默认 `../config.json`，找不到回退 `../config.example.json`）。
-- `SHIFT`：`morning` / `noon` / `evening`（必填）。
-- `QID`：指定问题 qid（可选，跳过自动选题）。
-- `CONTENT` / `CONTENT_FILE`：回答正文（`answer=true` 时必填其一；CONTENT_FILE 优先）。
-- `KW`：覆盖轮转关键词（可选，逗号分隔）。
-- `LIMIT`：热榜扫描条数（默认 25）。
-- `COMMENT_TEXT`：评论内容（`interactions.comment=true` 时可选）。
+> ⚠️ **本机实测（macOS / ego-browser nodejs）不向运行时透传 shell 环境变量**——`process.env.*` 全为 `UNDEF`，故 heredoc/env 内联写法在本环境会失败。统一用「参数文件 `/tmp/zhihu_shift_params.json` + 不带 env 的 `ego-browser nodejs < scripts/run_shift.js`」最稳。脚本已同时兼容 env（其他机器若透传仍可用）。
 
-脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机3-5赞（差值自校正）→ 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 发布卡死即停」。
+脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机选3-5点赞（自然化）→ 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 随机选赞 + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：
@@ -60,7 +126,7 @@ SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser n
 KW='历史,神话,唐僧,西游记' ego-browser nodejs < scripts/pick_question.js
 ```
    从 KEYWORD_HITS / ALL_TITLES 选一个中热度、未答过的问题，记下 qid。
-2. 验证未答过并前10随机点赞3-5（脚本内含「已答过跳过 + 已赞跳过 + 差值自校正」）：
+2. 验证未答过并点赞（前10随机选3-5，脚本内含「已答过跳过 + 已赞跳过 + 随机选赞」）：
 ```
 QID=<qid> ego-browser nodejs < scripts/like_top5.js
 ```

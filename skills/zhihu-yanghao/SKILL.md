@@ -1,38 +1,27 @@
 ---
 name: zhihu-yanghao
-description: This skill provides the full Zhihu account-nurturing (养号) workflow for a Zhihu account via ego-browser — user-configurable topic pool, three-shift (morning/noon/evening) schedule where each shift writes+publishes+verifies one answer and runs like engagement, plus optional collect/follow/comment interactions driven by config. Use it when the user asks to 知乎养号 / 养知乎号 / 发知乎回答 / 知乎点赞互动 / 知乎浏览 / 三班养号, or wants a portable, risk-controlled, topic-configurable Zhihu growth routine on any machine where ego-browser is installed.
+description: This skill provides the full Zhihu account-nurturing (养号) workflow for a Zhihu account via ego-browser — user-configurable topic pool with vertical focus (创作垂直度), three-shift (morning/noon/evening) schedule where each shift writes+publishes+verifies one answer and runs like engagement, weekly deep-dive answers (深度版, user-invited or random), moments/想法 posting for follower intimacy, content-influence requirements (hook + actionable + CTA + comment reply), plus optional collect/follow/comment interactions driven by config. Use it when the user asks to 知乎养号 / 养知乎号 / 发知乎回答 / 知乎点赞互动 / 知乎浏览 / 三班养号 / 写深度版 / 发想法 / 提升创作分, or wants a portable, risk-controlled, topic-configurable Zhihu growth routine on any machine where ego-browser is installed.
 agent_created: true
-version: 1.2.2
-metadata:
-  openclaw:
-    requires:
-      env:
-        - SHIFT
-        - CONFIG
-        - QID
-        - CONTENT
-        - CONTENT_FILE
-        - KW
-        - LIMIT
 ---
 
-# 知乎养号（zhihu-yanghao）v1.2.2
+# 知乎养号（zhihu-yanghao）v1.3.0
 
-一套依赖 ego-browser 的知乎养号全流程，支持 **用户可配置话题池 + 早/中/晚三班节奏**：
+一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
+- **垂直收敛**：账号只养 2 个领域（当前「趣味历史」+「人文心理」），刻意埋关键词帮算法点亮创作垂直度。
 - **选题**：全局 `topic_pool`，三班按「日序号 + 班次偏移」自动轮转取关键词（见 references/topic-strategy.md）。
 - **每日每班 1 回答**：写 / 发布 / 折叠验证（你已选择三班各写 1 回答 = 3 回答/天，属自定义高风险，见下方⚠️）。
-- **点赞互动**：计数差值自校正，三班各自独立会话。
+- **深度版**：每周 1 篇 800–1200 字深度回答（用户邀请 or 自动随机），冲内容优质分。
+- **想法**：每周若干条短动态，冲关注者亲密度。
+- **影响力规范**：每篇回答必须带反直觉 hook + 可操作清单 + 引导互动，并在 24h 内回评论。
+- **点赞互动**：前 10 个回答里随机选 3–5 个点赞（自然化，避免每次固定点赞前 N 被风控标记），三班各自独立会话。
 - **可选互动**：收藏 / 关注问题 / 评论，按 `config.json` 每班 `interactions` 用户自定义。
 
 可在任意装了 ego-browser 的机器上独立运行，不依赖本工作区记忆。
 
-## 更新日志
-- **v1.2.1**（2026-08-16）：修复 `run_shift.js` / `like_top5.js` 中点赞选择器 `button[aria-label*="赞同"]` 在 `js()` 二次求值时会引号错配报 `SyntaxError` 的问题，改为无引号写法 `button[aria-label*=赞同]`（已实测线上可用）。另补一条运行须知：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃、cwd 锁死 `/`），推荐用 heredoc 在脚本内注入 `process.env` 再 `eval` 主脚本（见下方「运行模式」）。
-- **v1.2.2**（2026-08-19）：点赞策略升级为「前 10 个回答里随机选 3–5 个点赞」（受 `config.interactions.like` 上限约束），替代原「固定点赞前 N 个」，更贴近真人随机行为、抗风控；点赞按钮选择器沿用 v1.2.1 无引号写法（实测可用）。
-
 ## 何时使用
 - 用户说「知乎养号」「养知乎号」「今天养号」「发知乎回答」「知乎点赞 / 互动 / 浏览」「三班养号」「按话题养号」。
+- 用户说「写深度版 / 这篇写深一点」「发个想法 / 发动态」「提升创作分 / 创作分复盘」「点亮垂直度」。
 - 用户要在新机器上跑一套**话题可配置、带三班节奏**的知乎增长 routine。
 
 ## 前置依赖（必须）
@@ -68,24 +57,54 @@ CONFIG=/path/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
 # 指定问题覆盖（跳过自动选题）
 SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
 ```
-脚本内部已含「已答过跳过 + 已赞跳过 + 差值自校正 + 发布卡死即停」。详细 env 与配置见 references/workflow.md。
+脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
 
-> ⚠️ **环境变量注意（重要）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 等会被丢弃，且进程 `cwd` 锁死为 `/`）。这会导致上面的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 跑不起来，同时脚本内相对路径 `../config.json` 也找不到文件。可靠写法是用 heredoc 在脚本内注入 env、用绝对路径 `eval` 主脚本（绝对路径脚本 + `fs.readFileSync` 读绝对路径 config，两个坑一起绕开）：
-> ```bash
-> ego-browser nodejs <<'EOF'
-> process.env.CONFIG = '/绝对路径/config.json';
-> process.env.SHIFT = 'morning';
-> const fs = require('fs');
-> const src = fs.readFileSync('/绝对路径/scripts/run_shift.js', 'utf8');
-> (function(){ eval(src); })();
-> EOF
-> ```
+## 创作分提升四件套（v1.3.0）
+针对知乎创作分六维体系（创作活跃度 / 创作垂直度 / 内容优质分 / 创作影响力 / 关注者亲密度 / 社区成就分）的定向优化，全部由 `config.json` 驱动：
+
+### 1. 垂直度收敛（`vertical_focus`）
+账号只养 **2 个领域**，不再横跨多领域。当前锁定 **「趣味历史」+「人文心理」**（见 `config.vertical_focus.primary`）。
+- 每篇回答**刻意自然融入 2–3 个本领域关键词**（见 `keyword_hints`），帮算法识别并点亮创作垂直度。
+- `topic_pool` 按历史类 / 人文类**交替排列**，保证轮转取到的 3 个关键词横跨两个领域，既集中又不单一。
+- 🚫 不在垂直领域外的话题下写回答（产品 / 财务 / 职场 / 社会热点一律不写），否则垂直度永远点不亮。
+
+### 2. 深度版回答（`deep_answer`，每周 1 篇）
+内容优质分是**周更**维度，靠"被算法识别为优质内容"涨分，标准回答（250–800 字）拉不动。每周至少 1 篇深度版：
+- **触发方式**（`config.deep_answer.mode`）：
+  - `auto`（默认）：用户说「深度版 / 写深一点」即 **invite 触发**；否则每周**随机挑 1 班**自动走深度版。
+  - `invite`：仅用户显式邀请时写。
+  - `random`：仅按周自动随机，不接受指定。
+- **字数**：800–1200 字（普通回答是 250–800）。
+- **硬性三项要求**（`config.deep_answer.requirements`）：① 1 处可核查的史料原文 / 数据 / 案例；② 1 组对比结构（分层或表格化）；③ 1 段可操作的判断框架或结论。
+- 深度版同样走 `run_shift.js` 发布流程，只是正文按深度规范生成，**流程无差别**。
+
+### 3. 想法 / 动态（`moments`）
+关注者亲密度是**月更**维度，且是提升性价比最高的一项——想法（知乎动态）短、频、轻，不需要深度。
+- 频率：`config.moments.per_week`（默认 4 条 / 周），长度 50–150 字。
+- 内容方向见 `config.moments.topics`（读史笔记 / 历史冷知识 / 生活心理观察 / 读书摘录+点评）。
+- **已自动化**：`scripts/post_moment.js`（2026-08-31 实测选择器 + dryRun 验证通过）：
+  ```
+  echo '{"contentFile":"/abs/moment.txt","dryRun":true}' > /tmp/zhihu_moment_params.json
+  ego-browser nodejs < scripts/post_moment.js
+  ```
+  建议新机器首次跑先带 `dryRun: true`（只填不发布），确认无异常再写 `"dryRun": false` 实发。
+  ⚠️ **默认 fail-safe**：不设置 `dryRun` 时一律只填不发布，实发必须显式写 `"dryRun": false`。
+
+### 4. 创作影响力要求（`influence`）
+影响力 ≠ 点赞数。**收藏、评论、分享的权重高于赞同**——自动点赞只贡献赞同，必须靠内容质量拉动收藏与评论。每篇回答必须满足：
+- **hook**：开头或中段抛 1 个反直觉 / 反常识观点，让人产生想反驳或补充的冲动（拉评论）。
+- **actionable**：至少 1 个可操作清单 / 判断框架 / 步骤（如「判断 X 的 3 步法」）（拉收藏）。
+- **cta**：结尾 1 句轻量引导互动，不硬求赞、不套路。
+- **评论回复**：发布后 24h 内回复全部评论（`config.influence.comment_reply`），互动率直接影响影响力分。**由 agent 执行（无脚本）**：agent 应在下一次养号任务开始时，先用 CLI 查上一班回答的评论并回复，或提醒用户手动回复。
+
+> **配置分工（重要，勿误解）**：`vertical_focus` / `deep_answer` / `influence` 三个配置块是**给 agent 的写作规范**——脚本不读取、不会自动生效；agent 生成正文时必须主动读 config 并遵守。只有 `moments.min_words/max_words` 被 `post_moment.js` 读取（超出仅 WARN），以及各班 `shifts.*.interactions` 被 `run_shift.js` 读取执行。
 
 ### 旧版单脚本（仍可用，按需）
-- `scripts/like_top5.js`：对指定问题前 10 个回答随机点赞 3–5 个（env: `QID`）。
+- `scripts/like_top5.js`：对指定问题在前 10 个回答里随机选 3–5 个点赞（env: `QID`，可选 `POOL`/`LIKE_MIN`/`LIKE_MAX` 覆盖默认）。
 - `scripts/write_answer.js`：写回答 + 发布（env: `QID` + `CONTENT_FILE`/`CONTENT`）。
 - `scripts/verify_fold.js`：按 `aid` 验证折叠（env: `AID`，可选 `QID`）。
 - `scripts/pick_question.js`：扫热榜按关键词过滤输出候选 qid（env: `KW`、`LIMIT`）。
+- `scripts/post_moment.js`：发想法 / 动态（参数文件 `/tmp/zhihu_moment_params.json`，支持 `dryRun`）。
 
 DOM 选择器、按钮点击要点见 references/selectors.md。
 

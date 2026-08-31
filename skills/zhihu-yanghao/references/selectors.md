@@ -3,10 +3,10 @@
 ## 知乎关键选择器 / 按钮
 | 目标 | 选择器 / 判定 | 说明 |
 |---|---|---|
-| 赞同按钮 | `button[aria-label*=赞同]` | **⚠️ 8/11 实测旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 已失效**（知乎改版）；aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 `trim()`**）；`.click()` 触发点赞。**注意**：`button[aria-label*="赞同"]` 带引号写法在 `js()` 二次求值时引号会错配报 `SyntaxError`，脚本里一律用无引号 `button[aria-label*=赞同]`（v1.2.1 修复） |
+| 赞同按钮 | `button[aria-label*="赞同"]` | **⚠️ 8/11 实测旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 已失效**（知乎改版）；aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 `trim()`**）；`.click()` 触发点赞 |
 | 已赞同判定 | `b.classList.contains('is-active')`（class 含 `VoteButton is-active`） | 再点会**取消**点赞（toggle 行为）；点赞前必须判此跳过，否则把已赞取消。innerText 含「已赞同」也可但不如 class 稳 |
 | ⚠️ 按钮 innerText 零宽字符 | `/赞同/.test(b.innerText)` 可命中，但 `b.innerText.trim()==='赞同 87'` 命中 0 | **8/12 实测**：innerText 实际为 `"\u200b 已赞同 87"`（前导零宽字符 `\u200b` + 空格）；**一律用 `aria-label` + `trim()` 做精确匹配**，绝不依赖 innerText 等值 |
-| 回答容器 | `[data-zop]` | 每个含 `itemId`（JSON.parse 取），用于去重遍历前 5 |
+| 回答容器 | `[data-zop]` | 每个含 `itemId`（JSON.parse 取），用于去重遍历前 10 个作为随机选赞候选池 |
 | Draft.js 编辑器 | `.public-DraftEditor-content` | fillInput 目标；`\n\n` 分段保留段落 |
 | 「写回答」按钮 | `button` 且 `innerText.includes('写回答')` | 文本前有零宽字符 `\u200b`，**不能**用 `===` |
 | 「查看我的回答」按钮 | `button` 且 innerText 含「查看我的回答」 | 出现 = 该问题已答过，5 天内避开 |
@@ -16,7 +16,15 @@
 | 按时间排序菜单 | 找 `b.innerText.trim() === '默认排序'` 按钮，再点「按时间排序」 | 新回答默认排序靠后，验证可见性需切此 |
 | 历史类话题 ID | `19551077`（机器学习是 `19559450`，别搞混） | 话题页入口 |
 | 精华区 URL | `/topic/19551077/top-answers` | 带连字符；`/top_answers` 是 404 |
-| 折叠验证 API | `/api/v4/answers/{aid}` 的 `is_collapsed` 字段 | 可靠；页面摘要默认只显示末尾段会误判 |
+| 折叠验证 | **权威：官方 CLI** `zhihu-cli me contents --type answer --limit 3`（最新一条摘要完整 = 未折叠）；想法用 `--type pin` | **⚠️ 8/26 起 `serverFetch('/api/v4/answers/{aid}')` 持续 403 已失效**，页面摘要只显示末尾段会误判——浏览器侧一律不可信，以 CLI 为准 |
+
+### 想法 / 动态（2026-08-31 实测）
+| 目标 | 选择器 / 判定 | 说明 |
+|---|---|---|
+| 「发想法」入口 | `button` 且 `innerText.includes('发想法')` | 首页顶部（知乎首页 URL 不变，弹窗形式） |
+| 想法编辑器 | `.public-DraftEditor-content` | **与回答编辑器同一个类**，fillInput 直接复用 |
+| 「发布」按钮 | 从编辑器向上遍历祖先（≤10 层），取 `innerText.trim() === '发布'` 的 button | 注意是「发布」**不是**「发布回答」 |
+| 发布成功标志 | **浏览器侧不可信**：弹窗会重置为空白编辑器（`editorRemaining` 恒为 1，假阴性） | 权威校验：CLI `me contents --type pin --limit 3` |
 
 ## ego-browser nodejs API 速查
 > 这些全局函数在 `ego-browser nodejs` 运行时可用（无需 import）。
@@ -24,6 +32,7 @@
 | API | 作用 |
 |---|---|
 | `useOrCreateTaskSpace(name)` | 创建 / 复用任务空间，返回 `{ id }` |
+| `claimTaskSpace(id)` | **取回被人工接管的任务空间**（8/31 实测：报 `The user has taken control of this task space` 时禁止重试/自行夺回，等用户放行后用此恢复；space id 规则 `zhihu-shift-{shift}-{qid}`） |
 | `openOrReuseTab(url, { wait, timeout })` | 打开或复用标签页 |
 | `wait(sec)` | 等待秒数（用于阅读模拟、点赞间隔、发布前等） |
 | `js(codeString)` | 在页面执行 JS，返回结果（code 为字符串，建议字符串拼接避免模板插值） |
@@ -38,9 +47,10 @@
 ## js 代码字符串写法建议
 - 脚本文件（scripts/）内用**字符串拼接**组装 js 代码（避免 `${}` 被外壳展开）：
   ```js
+  // ✅ 用当前有效选择器（aria-label + trim），旧 VoteButton 系列已失效勿用
   const r = await js('(() => {'
-    + ' const b = document.querySelector("button.VoteButton:not(.VoteButton--down)");'
-    + ' return b ? b.innerText.trim() : "";'
+    + ' const b = Array.from(document.querySelectorAll("button[aria-label*=\"赞同\"]"))[0];'
+    + ' return b ? (b.getAttribute("aria-label") || "").trim() : "";'
     + '})()')
   ```
 - 若直接写 `ego-browser nodejs <<'EOF' ... EOF'`（单引号 EOF），可用模板字符串与 `${JSON.stringify(x)}` 注入参数。

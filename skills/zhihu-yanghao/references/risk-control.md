@@ -6,9 +6,10 @@
 - 🚫 **绝对禁止**：1 分钟内连发 > 1 条回答（哪怕间隔也要 ≥ 5 分钟）。
 - 🚫 **绝对禁止**：单次任务（单班会话）包含 > 1 条回答（多回答拆成多天 / 多班）。
 - 🚫 **绝对禁止**：点赞间隔 < 30 秒（30–90 秒随机安全）；评论间隔同理。
+- 🚫 **绝对禁止**：想法（moments/动态）等同创作内容——两条想法之间间隔 ≥ 5 分钟；单次任务只发 1 条想法（`post_moment.js` 单次仅发 1 条，天然满足）。
 - ⚠️ **必须**：每个问题先浏览 5 分钟再写，写完再等 1 分钟才发布。
 - ⚠️ **必须**：跨天轮换选题类型，避免单一人设指纹（含**同主线不同子方向**：8/11 发代际父子→8/12 必须切中年女性职场/断舍离等，不可连发亲子同质，8/12 实证连续两天同主线有指纹风险）。
-- ⚠️ **必须**：回答字数方差要大（250–800 字），不能固定区间。
+- ⚠️ **必须**：回答字数方差要大——标准回答 250–800 字；深度版 800–1200 字（`config.deep_answer`，每周 ≤1 篇，属内容优质分策略而非风控豁免），不能固定区间。
 - ⚠️ **必须**：任务前后加随机浏览（推荐 / 关注 / 热榜），混在自然流量里。
 
 ## ⚠️ 三班各写 1 回答 = 3 回答/天（自定义高风险）
@@ -36,8 +37,8 @@
 - 🔍 **根因推断**：刚解封账号发布被风控 / 审核拦截，或知乎对发布请求有额外校验（CSRF / 频控）ego-browser 环境未通过。点赞 AJAX 正常说明基础网络 / 登录态 OK，唯独发布 pending。
 - 🚫 **非 String.raw 乱码问题**：直接传 UTF-8 中文，fillInput 正常入 DOM，与卡死无关。
 - ✅ **处理原则**：发布卡「发布中」即停，**不要重复点 / 重复重试**（会在知乎云端累积卡死草稿，reload 不释放）；先等账号风控释放或手动在浏览器发布。
-- ✅ **验证成功与否的唯一可靠方式**：去 `https://www.zhihu.com/people/<账号>/answers` 干净主页查是否有新回答文本（带编辑器草稿的页面 body 含草稿文本会误判）；或用 `verify_fold.js` 调 `/api/v4/answers/{aid}` 看 `is_collapsed`。
-- ✅ **更可靠的 API 验证（推荐）**：`serverFetch('/api/v4/answers/{aid}?include=content,is_collapsed,voteup_count,updated_time')`，确认三项：① `updated_time` 是发布后最近几分钟；② `is_collapsed=false`；③ `content` 无 `\u` 字面乱码。「发布中…」卡 UI 60+ 秒是**假象**，必须以此 API 为准（8/5 验证：insertHTML 提交后 UI 卡死，但 API 显示 updated_time 已写入 11 段）。
+- ✅ **验证成功与否的权威方式（2026-08-31 更新）**：官方 CLI `zhihu-cli me contents --type answer --limit 3` —— 最新一条即新回答、摘要完整 = 未折叠（折叠则摘要为空）。想法用 `--type pin`（想法类型是 **pin**，不是 moment）。
+- ❌ **serverFetch `/api/v4/answers/{aid}` 已失效（8/26 起）**：浏览器上下文调该 API 持续返 HTTP 403（近 3 次运行 5/5 全败），`run_shift.js` 的 `API_VERIFY` 步骤因此恒为 `is_collapsed=?`。**403 不影响发布本身**，只是验证手段失效——勿据此判定失败、勿重试发布。历史方法（8/5 曾有效）：`serverFetch(...include=content,is_collapsed,voteup_count,updated_time)`，仅作存档参考。
 - ⚠️ **草稿箱路径已变**：`/creator/manage/draft` 返回 404，旧路径失效。
 - ✅ **已验证恢复**：解封约 4 天后（8/3 → 8/7）重发回答成功，确认卡死为**临时风控窗口**非永久问题，「每天 1 回答」节奏可正常继续。
 
@@ -46,6 +47,6 @@
 - ✅ **fillInput 永远直接传 UTF-8 中文字符串**（如 `await fillInput('.public-DraftEditor-content', '到中年...')`）。
 - ✅ **Draft.js 新回答 fillInput 流程**：从 0 内容状态 fillInput + `\n\n` 分段可保留段落格式。
 - ⚠️ **修改回答的清空 + 重填**：用 `execCommand('insertHTML', false, '<p>...</p>...')` 注入 HTML 是保留首段的唯一方法（`ClipboardEvent paste` 会 strip 短单行首段）。
-- ⚠️ **「发布中…」持续 60+ 秒是 UI 假象**——必须用 `serverFetch` 验证 API updated_time 才知真假。
+- ⚠️ **「发布中…」持续 60+ 秒是 UI 假象**——不要用页面状态判断，用官方 CLI `me contents` 验证（serverFetch 已 403 失效）。
 - ⚠️ **同一回答短时间内多次修改会被限流**——知乎对 ~30 分钟内第二次修改不更新 updated_time。
-- ✅ **serverFetch 带 ego-browser 登录态**，能拿到完整 content 字段（curl 拿不到）。
+- ⚠️ **serverFetch 已失效（8/26 起 403）**。历史记录：曾带 ego-browser 登录态拿到完整 content 字段（curl 拿不到），现验证一律走官方 CLI。
