@@ -23,3 +23,6 @@ Thumbs.db
 *.keystore
 id_rsa
 id_rsa.pub
+
+# Skill runtime configs — contain real account IDs; only config.example.json is committed
+skills/**/config.json
