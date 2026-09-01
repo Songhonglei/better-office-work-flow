@@ -75,6 +75,33 @@ zhihu-cli me contents --type pin --limit 3
 ```
 注意想法在 API 里的内容类型是 **`pin`**（不是 moment）。`--type` 只支持 `all / answer / article / zvideo / pin / question`。
 
+
+## 修改已发布回答（v1.3.1，scripts/edit_answer.js）
+
+```
+# 1) 新正文写入文件（🚫 禁止 Markdown：** 和行首 "- " 会字面残留；用 1./·/破折号排版）
+#    或让脚本自动清洗：stripMarkdown: true
+cat > /tmp/zhihu_edit_params.json <<'EOF'
+{ "aid": "2078057751377360832", "qid": "520978750",
+  "contentFile": "/abs/new-text.txt", "dryRun": true }
+EOF
+
+# 2) 跑（默认 dryRun：只替换编辑器草稿不提交，浏览器人工确认后再实提）
+ego-browser nodejs < scripts/edit_answer.js
+```
+
+**已验证的替换方法**（2026-09-01 实测）：`selectAll + delete` 清空后，**唯一可行**的注入方式是
+`document.execCommand('insertHTML', false, '<p>段落…</p>…')`——fillInput 在清空后的 Draft.js 上失效（innerText 长度=1）。
+
+**已知限制（如实告知）**：内容替换 ✅ 可行；但点击「提交修改」后**提交可能不被响应**（无弹窗、无报错、编辑态不退出，疑似需 mousedown/mouseup 事件序列）。脚本会轮询编辑态退出 5 次（20s），期间检测组合词确认弹窗（排除「提交修改」「发布设置」自身）；仍未退出则输出 `SUBMIT_NOT_EFFECTIVE` 并**停止**——不重试点击，转人工在 ego lite 确认（编辑器里已是新内容，手动点提交即可）。
+
+**护栏**（任一不过即停，绝不提交坏内容）：
+- 长度校验：编辑器 innerText 长度需在期望值 ±15% 内
+- 符号校验：编辑器内不得有 `**` 残留
+- 按钮精确匹配：`innerText.trim() === '提交修改'`（真名，非「发布修改」）
+
+**风控提示**：知乎对 ~30 分钟内第二次修改不更新 `updated_time`；修改完成后用 CLI `me contents --type answer` 做权威复核（注意索引可能滞后几分钟）。
+
 ## 两种调用方式
 方式一（推荐，文件直读）：把脚本内容喂给 ego-browser：
 ```

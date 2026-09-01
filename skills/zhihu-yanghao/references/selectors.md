@@ -26,6 +26,15 @@
 | 「发布」按钮 | 从编辑器向上遍历祖先（≤10 层），取 `innerText.trim() === '发布'` 的 button | 注意是「发布」**不是**「发布回答」 |
 | 发布成功标志 | **浏览器侧不可信**：弹窗会重置为空白编辑器（`editorRemaining` 恒为 1，假阴性） | 权威校验：CLI `me contents --type pin --limit 3` |
 
+### 编辑已发布回答（2026-09-01 实测）
+| 目标 | 选择器 / 判定 | 说明 |
+|---|---|---|
+| 「编辑回答」按钮 | 回答页 `button` 且 `innerText.includes('编辑回答')` | 存在 = 回答已发布且可见 |
+| 提交按钮 | `button` 且 `innerText.trim() === '提交修改'` | ⚠️ 真名是「提交修改」**不是**「发布修改」；另有「保存草稿并离开」「发布设置」易混淆 |
+| 清空编辑器 | `ed.focus(); document.execCommand('selectAll'); document.execCommand('delete')` | fillInput 在清空后的 Draft.js 上**失效**（innerText 长度=1） |
+| 注入新内容 | `document.execCommand('insertHTML', false, '<p>…</p>…')` | **唯一已验证可行**的替换方法；`\n\n` → 段落 `<p>`，段内 `\n` → `<br>` |
+| 提交效果判定 | 轮询「提交修改」按钮是否消失（编辑态退出） | ⚠️ **已知问题**：点击后提交可能不被响应（无弹窗无报错），疑似需 mousedown/mouseup 序列；未退出即停，转人工 |
+
 ## ego-browser nodejs API 速查
 > 这些全局函数在 `ego-browser nodejs` 运行时可用（无需 import）。
 

@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.0
+# 知乎养号（zhihu-yanghao）v1.3.1
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -102,23 +102,25 @@ SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser n
 ### 旧版单脚本（仍可用，按需）
 - `scripts/like_top5.js`：对指定问题在前 10 个回答里随机选 3–5 个点赞（env: `QID`，可选 `POOL`/`LIKE_MIN`/`LIKE_MAX` 覆盖默认）。
 - `scripts/write_answer.js`：写回答 + 发布（env: `QID` + `CONTENT_FILE`/`CONTENT`）。
-- `scripts/verify_fold.js`：按 `aid` 验证折叠（env: `AID`，可选 `QID`）。
+- `scripts/verify_fold.js`：按 `aid` 验证折叠（env: `AID`，可选 `QID`）。⚠️ 其 API 路径（serverFetch）8/26 起 403 失效，验证请改用 CLI。
 - `scripts/pick_question.js`：扫热榜按关键词过滤输出候选 qid（env: `KW`、`LIMIT`）。
 - `scripts/post_moment.js`：发想法 / 动态（参数文件 `/tmp/zhihu_moment_params.json`，支持 `dryRun`）。
+- `scripts/edit_answer.js`：修改已发布回答（参数文件 `/tmp/zhihu_edit_params.json`：`aid`/`qid`/`contentFile`/`stripMarkdown`/`dryRun`）。⚠️ 已知限制：内容替换可行，但「提交修改」点击可能不生效（脚本会安全停止并提示人工确认）。
 
 DOM 选择器、按钮点击要点见 references/selectors.md。
 
 ## 关键陷阱（务必先看）
+- 🚫 **生成回答禁止输出 Markdown**（9/1）：编辑器不渲染，`**` / `- ` 按字面残留。纯文本排版用「1.」「· 」、破折号强调。
 - 🚫 **永远不要对中文用 `String.raw`**（8/4 乱码事故）：`fillInput` 直接传 UTF-8 字符串。
 - ✅ **点赞按钮（8/11 实测修正）**：旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 在新版知乎**已失效**；改用 `button[aria-label*="赞同"]`，aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 trim**），已赞判定用 `classList.contains('is-active')`（class 含 `VoteButton is-active`）。
 - ⚠️ **点赞按钮 innerText 含前导零宽字符 `\u200b`**（实测为 `"\u200b 已赞同 87"`），**不能用 `===` / `startsWith('赞同')` 精确匹配**；一律用 aria-label + trim（8/12 实测：innerText 精确匹配命中 0，aria-label 精确匹配命中）。
 - ✅ 「写回答」按钮文本前有零宽字符 `\u200b`，用 `.includes('写回答')`；「发布回答」按钮用 `innerText.trim() === '发布回答'` 的 js click 才稳。
-- 🚫 **发布卡「发布中…」disabled 即停**：不要重复点 / 重试（会在云端累积卡死草稿）。等待账号风控释放或手动在浏览器发布。验证发布成功唯一可靠方式：去 `https://www.zhihu.com/people/<账号>/answers` 干净主页查，或用 `verify_fold.js` 调 `/api/v4/answers/{aid}` 看 `is_collapsed`。
-- ✅ 折叠验证以 API `is_collapsed` / 回答页「编辑回答」按钮为准，不要信页面摘要（默认只显示末尾段）。
+- 🚫 **发布卡「发布中…」disabled 即停**：不要重复点 / 重试（会在云端累积卡死草稿）。等待账号风控释放或手动在浏览器发布。
+- ⚠️ **验证发布/修改成功一律用官方 CLI**：`zhihu-cli me contents --type answer --limit 3`（摘要完整=未折叠；想法用 `--type pin`）。`serverFetch('/api/v4/answers/{aid}')` 自 8/26 起持续 403 已失效，`verify_fold.js` 的 API 路径随之不可靠；页面摘要/浏览器侧信号均有假阴性。
 
 ## 验证发布成功
 1. 发布后 URL 跳转 `/question/{qid}/answer/{aid}`。
-2. `run_shift.js` 会自动调 `/api/v4/answers/{aid}` 看 `is_collapsed`；或单独跑 `verify_fold.js`（env `AID`）。
+2. **权威校验**：`zhihu-cli me contents --type answer --limit 3` —— 最新一条即新回答、摘要完整 = 未折叠（折叠则摘要为空）。注意刚发布索引可能滞后（404/旧摘要），等 1–2 分钟再查；`run_shift.js` 内置的 `API_VERIFY` 因 serverFetch 403 恒为 `is_collapsed=?`，不代表失败。
 
 ## 文件产出建议
 - 日报：`output/zhihu/YYYY-MM-DD-{shift}.md`（shift: morning / noon / evening）。
