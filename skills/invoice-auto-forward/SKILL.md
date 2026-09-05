@@ -38,7 +38,7 @@ metadata: {"openclaw": {"envVars": [{"name": "INVOICE_FORWARD_CONFIG", "required
 5. **验证**：依次执行
    - `python3 scripts/invoice_forward.py check` — 体检全过才继续
    - `python3 scripts/invoice_forward.py scan` — 干跑预览，向用户展示将转发的邮件清单（主题渲染结果），请用户确认
-6. **定时任务（可选，引导创建）**：询问用户是否创建定时任务及频率（如每 3 天）。WorkBuddy 环境用 automation 工具创建，任务内容就是执行 `run` 子命令并复述输出；非 WorkBuddy 环境给出 crontab 行。提醒：创建后核对下次运行时间是否符合预期。
+6. **定时任务（可选，引导创建）**：询问用户是否创建定时任务及频率（如每 3 天）。WorkBuddy 环境用 automation 工具创建，任务内容就是执行 `run` 子命令并复述输出；非 WorkBuddy 环境给出 crontab 行。**创建前务必先读「定时任务（无人值守）」章节**——脚本必须落在持久目录，否则可能长期静默失败，该章节提供了可直接复用的 automation prompt 模板与 crontab 行。提醒：创建后核对下次运行时间是否符合预期。
 7. **完成汇报**：告知用户配置位置、手动执行方式、如何修改规则。
 
 ## 一键配置（setup 子命令，推荐）
@@ -68,11 +68,82 @@ python3 scripts/invoice_forward.py setup \
 
 ## 日常使用
 
-- **对话手动执行**：用户说"跑一次发票转发"等——先执行 `python3 scripts/invoice_forward.py scan` 向用户展示将发送清单，**用户确认后**再执行 `python3 scripts/invoice_forward.py run` 并复述输出（已发送/跳过/无PDF 各几封）。仅当用户明确说"直接发、不用确认"时才跳过 scan 直接 run。
+- **对话手动执行**：用户说"跑一次发票转发"等——先执行 `python3 scripts/invoice_forward.py scan` 向用户展示将发送清单，**用户确认后**再执行 `python3 scripts/invoice_forward.py run` 并复述输出（已发送/跳过/无发票待人工 各几封，含义见下方「输出解读」）。仅当用户明确说"直接发、不用确认"时才跳过 scan 直接 run。
 - **指定扫描窗口**：`scan --days 30` / `run --days 30`（默认取 config.json 的 scan.days）。
 - **预览不发送**：`python3 scripts/invoice_forward.py scan`（不写状态、不发送，随时可跑）。
 - **修改规则**：直接编辑 `~/.workbuddy/invoice-forward/config.json` 后重跑 `check` 验证。
 - **调试单张发票**：`python3 scripts/invoice_forward.py parse /path/to/发票.pdf`（或 `.ofd` / `.xml`，自动识别格式）。
+- **每日报告**：`run` 会在配置目录生成 `~/.workbuddy/invoice-forward/报告_YYYYMMDD.md`（同一天重跑覆盖），可直接读它复述结果，无需重新解析邮件。
+
+## 输出解读（重要：别把「跳过」当成漏发）
+
+`scan` / `run` 结尾会打印一行汇总，再按类别列出条目。五类状态含义完全不同：
+
+| 标记 | 含义 | 需要人工介入吗 |
+|---|---|---|
+| ✅ 已发送 / 将发送 | 抬头命中白名单，正常转发 | 否 |
+| ⚪ 跳过 | **抬头白名单不匹配**（个人消费票、他人抬头等） | 否——这是正确过滤，**不是漏发** |
+| ⚪ 跳过（发票号重复） | 同一张发票被多封邮件重复投递 | 否 |
+| ⚠️ 无发票 X — 原因 | 没拿到发票内容：缺 PDF 解析库 / 链接需登录或已过期 / 链接抓取被禁用 | **是** |
+| ⏸️ 延后 | 触达 `batch_limit` 单批上限 | 否——下轮自动续跑 |
+| ❌ 发送失败 | SMTP 发送报错（收件人被拒、风控拦截等） | **是** |
+
+关键区分：**「跳过」= 脚本已成功解析发票，只是判断抬头不命中而主动不转发**；
+「无发票」= 脚本根本没拿到发票内容。两者在代码里是两条独立分支，不会互相掩盖。
+
+所以排查"是不是漏了发票"时，要看 **「无发票」和「发送失败」**，而不是「跳过」。
+
+## 定时任务（无人值守）
+
+### ⚠️ 路径第一原则：脚本与配置必须在持久目录
+
+真实事故：曾有人把定时任务指向临时产物目录（如 `output/`）下自制的转发脚本，
+该目录被清理后任务**连续静默失败 25 天**——每次运行都报错，却因无人查看汇报而一直没暴露。
+
+因此：
+
+- 定时任务**只指向本 skill 自带的 `scripts/invoice_forward.py`**（位于 skill 安装目录，稳定持久），
+  或你确认不会被定期清空的路径；不要指向临时产物目录
+- 配置与去重库（默认 `~/.workbuddy/invoice-forward/`）同理——`processed.json` 一旦丢失，
+  重跑会重复转发窗口期内的发票
+- 换环境或重装后，先跑一次 `check` 确认脚本与配置都在，再启用定时任务
+
+### WorkBuddy automation prompt 参考模板
+
+````
+每天 10:30 执行一次发票自动转发（脚本在持久路径，唯一动作就是跑它）：
+
+  <python> <skill_dir>/scripts/invoice_forward.py run --days 7
+
+脚本行为（无需干预）：IMAP 扫描近 7 天主题含「发票」的邮件 → 解析发票文件
+（PDF/OFD/XML，无附件时自动抓正文链接）→ 仅当购买方抬头命中白名单时转发
+→ 按 Message-ID + 发票号双重去重，已处理不重发。
+
+配置与状态文件（勿改勿删）：
+- 配置：~/.workbuddy/invoice-forward/config.json（收件人/抬头白名单/扫描天数都在这里）
+- 去重库：~/.workbuddy/invoice-forward/processed.json
+- 凭证：~/.workbuddy/secrets/invoice-forward.env（chmod 600；禁止把授权码打印到聊天或日志）
+- 每日报告：~/.workbuddy/invoice-forward/报告_YYYYMMDD.md
+
+你的汇报（简短即可）：
+- 复述脚本输出：候选几封 / 已发送几封 / 跳过几封 / 无发票待人工几封
+- 若有「无发票」条目或脚本报错（授权码失效、网络异常等），逐条列出并提示需人工处理；
+  不要把报错静默成成功
+- 若脚本或 config 文件不存在，直接汇报「文件缺失：<路径>，需人工处理」后停止，
+  不要自己重写脚本或改配置
+````
+
+模板里两条硬约束都来自真实事故，别省掉：
+
+- **禁止模型自行重写脚本或改配置**——脚本缺失时应该报给人，而不是让模型"顺手"再造一个
+- **禁止把授权码打印到聊天或日志**
+
+### 非 WorkBuddy 环境（crontab）
+
+```bash
+# 每天 10:30 跑一次，输出追加到日志
+30 10 * * * /usr/bin/python3 /path/to/skills/invoice-auto-forward/scripts/invoice_forward.py run --days 7 >> /tmp/invoice-forward.log 2>&1
+```
 
 ## 行为与边界
 

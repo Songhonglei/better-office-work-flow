@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **zhihu-yanghao** v1.0.0 — 知乎养号 skill：三线选题模型 + 每日1回答（写→发布→折叠验证）+ 点赞互动（计数差值自校正防误 toggle），依赖 ego-browser
+- **invoice-auto-forward** v1.0.1 → v1.0.8 补登（此前仓库只登记了初始的 v1.0.0，中间 7 个版本的演进一直没记录）：
+  - v1.0.1 修复销售方（seller）提取为空（正则 `销\s*名称` → `销售方\s*名称`）。
+  - v1.0.2 修复 `scan` 干跑预览漏报发票号重复（`_nos` 去重集合被关在 `do_send` 分支内，预览与实跑不一致）。
+  - v1.0.3 多邮箱 provider 预设（qq/163/126/yeah）+ 发送节奏参数（防反垃圾风控）；修 `__version__` 与包版本不一致。
+  - v1.0.4 修复 163/126 `Unsafe Login`（登录后发 IMAP `ID` 自报身份）；凭证支持 `MAIL_USER`/`MAIL_AUTH_CODE` 环境变量回退。
+  - v1.0.5 新增 `setup` 一键配置子命令（验证通过才写 secrets，chmod 600 原子创建）。
+  - v1.0.6 链接型发票自动下载（如腾讯云 COS 预签名 URL）；新增 `fetch_links`/`link_domains` 等配置与安全闸门。
+  - v1.0.7 发票格式从 PDF 扩展到 **PDF / OFD / XML** 三种（OFD/XML 用 Python 标准库，零额外依赖）；链接下载同步泛化。
+  - v1.0.8 转发抄送（CC）支持，默认关闭。
 
 ### Changed
 - **zhihu-yanghao** v1.2.0 — 基于 2026-08-04~08-12 实战校验的重大修正：
@@ -17,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ⚠️ **innerText 零宽字符坑**：实测点赞按钮 innerText 为 `"\u200b 已赞同 87"`（前导零宽字符），不能用 `===`/`startsWith` 精确匹配，一律走 aria-label + trim。
   - ✅ **发布验证强化**：`run_shift.js` 验证步骤加 `updated_time` + content 乱码检测，对应「发布中…」卡 UI 假象（8/5 验证）。
   - ✅ **连续发文错峰**：补充「同主线不同子方向也要错峰」（8/11 父子→8/12 中年女性实证），写入风控与选题策略。
+- **invoice-auto-forward** 文档增强（v1.0.8 之后的文档改动，未发版）：
+  - 新增「输出解读」章节：明确「跳过」= 抬头白名单不命中（正确过滤，**不是漏发**），与「无发票」（解析/下载失败）是两条独立分支；排查漏发应看后者。此前该语义只存在于源码中。
+  - 新增「定时任务（无人值守）」章节：⚠️ 脚本与配置必须落在持久目录（记录了自制脚本放 `output/` 被清理、导致定时任务连续静默失败 25 天的事故）；提供 WorkBuddy automation prompt 参考模板与 crontab 行。
+  - 补充每日报告文件说明（`~/.workbuddy/invoice-forward/报告_YYYYMMDD.md`，此前文档未提）。
+  - 术语修正：「无PDF」→「无发票待人工」（脚本自 v1.0.7 起已支持 OFD/XML）。
+  - 修正 v1.0.7 条目中「GitHub/clawhub 仍停 v1.0.3（待发布）」的过时陈述。
 
 ## [1.0.0] - 2026-07-22
 

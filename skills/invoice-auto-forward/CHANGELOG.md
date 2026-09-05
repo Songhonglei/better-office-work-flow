@@ -3,6 +3,29 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### Unreleased
+
+#### Fixed
+
+- 修正 v1.0.7 条目中「本地已升至 v1.0.7，GitHub/clawhub 仍停 v1.0.3（待发布）」的过时陈述——
+  实际早已同步至 v1.0.8，该句会误导读者以为开源版滞后。
+
+#### Documentation
+
+- **新增「输出解读」章节**（重要）：用表格区分「已发送 / 跳过 / 跳过（发票号重复）/ 无发票 / 延后 /
+  发送失败」六类状态，明确 **「跳过」= 抬头白名单不命中（正确过滤，不是漏发）**，与「无发票」
+  （解析或下载失败）在代码中是两条独立分支，排查漏发应看后者而非前者。
+  此前该语义只存在于源码里，用户必须读代码才能判断有没有漏发。
+- **新增「定时任务（无人值守）」章节**：
+  - ⚠️ **路径第一原则**：脚本与配置必须落在持久目录。记录了「自制脚本放在 `output/` 被清理 →
+    定时任务连续静默失败 25 天」的真实事故。
+  - 给出 WorkBuddy automation prompt 参考模板，含两条来自事故的硬约束：
+    禁止模型自行重写脚本或改配置、禁止把授权码打印到聊天或日志。
+  - 给出非 WorkBuddy 环境的 crontab 行。
+- 补充「每日报告」说明：`run` 会在配置目录生成 `~/.workbuddy/invoice-forward/报告_YYYYMMDD.md`
+  （同日重跑覆盖）——这是脚本既有行为，此前文档未提及。
+- 术语修正：日常使用章节「无PDF」→「无发票待人工」（脚本自 v1.0.7 起已支持 OFD/XML，输出文案同步更新）。
+
 ### v1.0.8 (2026-07-30)
 
 - **新增：转发抄送（CC）支持，默认关闭**。`forward` 配置新增 `cc` 数组字段，填写后每封转发邮件同时抄送给这些地址；默认空数组（`"cc": []`）= 完全关闭，对既有用户零影响、零行为变化。
@@ -19,7 +42,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions
   - **XML**：结构化解析（兼容增值税电子发票 `FPML` / 全电发票等），命名空间无关、按已知字段标签（大小写不敏感，支持 `FPHM`/`KPRQ`/`GMF`+`NSRMC`/`XHF`+`NSRMC`/`XMMC`/`JSHJ` 等）在父子关系中取值；开票日期归一化为 `YYYYMMDD`。无需任何第三方库（Python 内置 `xml.etree`）。
 - **链接型发票下载泛化**：`download_link_pdf` → `download_link_invoice`，接受链接最终响应为 PDF/OFD/XML 任一格式（按 Content-Type / Content-Disposition 后缀 / 魔数判定），其余安全闸门（仅 http(s)、域名白名单、SSRF 字面量私有 IP 拦截、限大小/超时、仅保存发票字节）完全保留。
 - **依赖说明更新**：PDF 解析仍需 pdfplumber/pymupdf 至少其一；OFD/XML 用 Python 标准库即可，无额外安装负担。`process` 仅在遇到 PDF 且缺解析库时才跳过该邮件（并提示 `check --install-deps`），不再因缺 PDF 库整体退出，OFD/XML 流程不受影响。
-- 文档同步：`SKILL.md` 描述与支持范围扩至 OFD/XML、`parse` 子命令支持三种格式；`config.example.json` 注释将链接抓取的描述从"下载 PDF"更正为"下载发票文件"。**本地已升至 v1.0.7，GitHub/clawhub 仍停 v1.0.3（待发布）。**
+- 文档同步：`SKILL.md` 描述与支持范围扩至 OFD/XML、`parse` 子命令支持三种格式；`config.example.json` 注释将链接抓取的描述从"下载 PDF"更正为"下载发票文件"。
 
 ### v1.0.6 (2026-07-23)
 
