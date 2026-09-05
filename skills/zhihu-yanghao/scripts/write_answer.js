@@ -58,7 +58,7 @@
   if (m) {
     const aid = m[1]
     cliLog('PUBLISHED aid=' + aid)
-    cliLog('verify with: AID=' + aid + ' QID=' + qid + ' ego-browser nodejs < scripts/verify_fold.js')
+    cliLog('verify with: echo ' + JSON.stringify('{"aid":"' + aid + '","type":"answer"}') + ' > /tmp/zhihu_verify_params.json && ego-browser nodejs < scripts/verify_via_cli.js')
   } else {
     cliLog('WARN: url did not jump to /answer/{aid} — possible publish stuck (see risk-control: do NOT retry)')
   }

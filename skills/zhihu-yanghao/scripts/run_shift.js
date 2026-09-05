@@ -30,7 +30,7 @@
     if (!p.shift) {
       try {
         const f = JSON.parse(fs.readFileSync(file, 'utf8'))
-        for (const k of ['shift', 'configPath', 'qid', 'content', 'contentFile', 'kw', 'limit', 'commentText']) {
+        for (const k of ['shift', 'configPath', 'qid', 'content', 'contentFile', 'kw', 'limit', 'commentText', 'deep']) {
           if (f[k] != null && p[k] == null) p[k] = f[k]
         }
         cliLog('PARAMS_FROM_FILE: ' + file)
@@ -237,8 +237,18 @@
     let content = P.content || ''
     if (P.contentFile) content = fs.readFileSync(P.contentFile, 'utf8')
     if (!content.trim()) {
-      cliLog('WARN: answer=true but no content — skipping answer (do NOT publish empty)')
+      cliLog('ANSWER_SKIPPED: no content — do NOT publish empty')
     } else {
+      // 字数护栏：超区间一律跳过发布（deep=true 用深度版区间，否则标准区间）
+      const isDeep = P.deep === true || P.deep === 'true'
+      const style = isDeep ? (cfg.data.deep_answer || {}) : (cfg.data.answer_style || {})
+      const minW = style.min_words || (isDeep ? 800 : 250)
+      const maxW = style.max_words || (isDeep ? 1200 : 800)
+      const charCount = content.length
+      if (charCount < minW || charCount > maxW) {
+        cliLog('ANSWER_SKIPPED: WORD_COUNT_EXCEEDED ' + charCount + ' chars, allowed ' + minW + '-' + maxW + (isDeep ? ' (deep)' : ' (standard)') + ' — compress/expand content then rerun')
+      } else {
+      cliLog('WORD_COUNT_OK: ' + charCount + ' chars (' + minW + '-' + maxW + (isDeep ? ' deep' : ' standard') + ')')
       const opened = await js('(() => {'
         + ' const btns = Array.from(document.querySelectorAll("button"));'
         + ' const b = btns.find(function (x) { return x.innerText.indexOf("写回答") >= 0; });'
@@ -282,36 +292,16 @@
       } else {
         cliLog('WARN: url did not jump to /answer/{aid} — possible publish stuck (see risk-control: do NOT retry)')
       }
+      }
     }
   } else {
     cliLog('answer disabled for this shift')
   }
 
-  // ---------- 7. 验证未折叠（带 retry：刚发布的 answer 索引可能滞后返回 404） ----------
+  // ---------- 7. 折叠验证（走官方 CLI，serverFetch API 已于 8/26 起恒 403，不再重试） ----------
   if (aid) {
-    let collapsed = '?'
-    let raw = ''
-    const MAX_TRIES = 5
-    for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
-      try {
-        raw = (await serverFetch('https://www.zhihu.com/api/v4/answers/' + aid) || '').toString()
-        const i1 = raw.indexOf('is_collapsed')
-        if (i1 >= 0) {
-          collapsed = raw.substr(i1, 24)
-          cliLog('API_VERIFY attempt ' + attempt + ' is_collapsed=' + collapsed)
-          break
-        }
-        cliLog('API_VERIFY attempt ' + attempt + ': is_collapsed not in body yet (index lag), retrying...')
-      } catch (e) {
-        cliLog('API_VERIFY attempt ' + attempt + ' ERR: ' + (e && e.message ? e.message : String(e)))
-      }
-      if (attempt < MAX_TRIES) {
-        const gap = 10 + Math.floor(Math.random() * 6) // 10-15s 随机间隔，等索引跟上
-        cliLog('API_VERIFY wait ' + gap + 's before retry')
-        await wait(gap)
-      }
-    }
-    cliLog('API_VERIFY_FINAL is_collapsed=' + collapsed)
+    cliLog('VERIFY_VIA_CLI: zhihu-cli me contents --type answer --limit 3 (or run scripts/verify_via_cli.js with AID=' + aid + ')')
+    cliLog('VERIFY_RULE: summary non-empty = NOT collapsed; empty summary = collapsed (index may lag 1-2 min)')
   }
 
   // ---------- 8. 可选互动：收藏 / 关注问题 / 评论 ----------

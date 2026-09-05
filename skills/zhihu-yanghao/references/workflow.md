@@ -1,8 +1,9 @@
-# 工作流与脚本调用（zhihu-yanghao v1.1.0）
+# 工作流与脚本调用（zhihu-yanghao v1.3.3）
 
 ## 运行环境要求
 - 命令前缀：`ego-browser nodejs`（Bash 工具必须加 `dangerouslyDisableSandbox: true`，且 WorkBuddy 安全中心「沙箱安全」开关临时关闭）。否则 ego-browser 连不上（报 `Failed to connect to ego_cli bootstrap`）。
-- 所有脚本在 `scripts/` 下，参数通过环境变量传入。脚本内部用字符串拼接组装 js 代码，避免 `${}` 被外壳展开。
+- ⚠️ **PATH 注意（v1.3.3）**：ego-browser 可能不在 shell PATH（本机实测须用 `~/.local/bin/ego-browser`）；zhihu-cli 通常也不在 PATH（真实路径 `~/Library/Application Support/zhihu-cli/current/zhihu-cli`，verify_via_cli.js 已内置此回退）。
+- 所有脚本在 `scripts/` 下，参数通过环境变量或参数文件传入。脚本内部用字符串拼接组装 js 代码，避免 `${}` 被外壳展开。
 
 ## 配置 config.json（用户自定义话题与班次）
 1. 复制模板：`cp config.example.json config.json`（config.json 不纳入版本库，按你账号改）。
@@ -137,15 +138,25 @@ env 写法（其他机器若透传 env 可用）：`SHIFT=morning CONFIG=/abs/co
     "qid": "2070982459156424668",
     "contentFile": "/abs/answer.txt",
     "configPath": "/abs/config.json",
+    "deep": false,
     "kw": "历史,神话",
     "limit": 25,
     "commentText": "评论内容"
   }
   ```
 
+> ⚠️ **字数护栏（v1.3.3）**：`run_shift.js` 发布前按 config 校验 contentFile 字符数——`"deep"` 缺省/false 用 `answer_style`（250–800），`"deep": true` 用 `deep_answer`（800–1200）。超区间输出 `ANSWER_SKIPPED: WORD_COUNT_EXCEEDED` 并跳过发布（点赞/互动照常收尾），改正文后重跑（已赞自动跳过）。
+
+> ⚠️ **折叠验证（v1.3.3）**：`run_shift.js` 发布后**不再做** API 验证（serverFetch 8/26 起恒 403，旧版 retry 纯属白耗），只输出 `VERIFY_VIA_CLI` 提示——随后跑：
+> ```
+> echo '{"aid":"<aid>","type":"answer"}' > /tmp/zhihu_verify_params.json
+> ego-browser nodejs < scripts/verify_via_cli.js
+> ```
+> `VERIFY_RESULT: OK_NOT_COLLAPSED` = 未折叠；`NOT_FOUND_YET` = 索引滞后（1–2 分钟后重跑，不是折叠）。
+
 > ⚠️ **本机实测（macOS / ego-browser nodejs）不向运行时透传 shell 环境变量**——`process.env.*` 全为 `UNDEF`，故 heredoc/env 内联写法在本环境会失败。统一用「参数文件 `/tmp/zhihu_shift_params.json` + 不带 env 的 `ego-browser nodejs < scripts/run_shift.js`」最稳。脚本已同时兼容 env（其他机器若透传仍可用）。
 
-脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机选3-5点赞（自然化）→ 写/发布/验证1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 随机选赞 + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。
+脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机选3-5点赞（自然化）→ 字数护栏校验 → 写/发布1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 随机选赞 + 发布卡死即停 + 字数护栏」。折叠验证见上方 verify_via_cli.js。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：
@@ -161,12 +172,13 @@ QID=<qid> ego-browser nodejs < scripts/like_top5.js
 ```
 QID=<qid> CONTENT_FILE=/tmp/zhihu-answer.txt ego-browser nodejs < scripts/write_answer.js
 ```
-   脚本会：打开编辑器 → fillInput 正文 → 等 60s → 点「发布回答」→ 输出 aid。
-4. 验证未折叠：
+   脚本会：打开编辑器 → 粘贴注入正文（ClipboardEvent，v1.3.2）→ 等 60s → 点「发布回答」→ 输出 aid。
+4. 验证未折叠（v1.3.3 起用 CLI 脚本，verify_fold.js 已删除——其 API 8/26 起恒 403）：
 ```
-AID=<上一步输出的aid> QID=<qid> ego-browser nodejs < scripts/verify_fold.js
+echo '{"aid":"<上一步输出的aid>","type":"answer"}' > /tmp/zhihu_verify_params.json
+ego-browser nodejs < scripts/verify_via_cli.js
 ```
-   看到 `is_collapsed=false` 且 `hasEdit:true` 即成功。
+   看到 `VERIFY_RESULT: OK_NOT_COLLAPSED` 即成功。
 
 ## 模式 B：纯互动（只点赞）
 ```

@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.2
+# 知乎养号（zhihu-yanghao）v1.3.3
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -100,13 +100,14 @@ EOF
 - **cta**：结尾 1 句轻量引导互动，不硬求赞、不套路。
 - **评论回复**：发布后 24h 内回复全部评论（`config.influence.comment_reply`），互动率直接影响影响力分。**由 agent 执行（无脚本）**：agent 应在下一次养号任务开始时，先用 CLI 查上一班回答的评论并回复，或提醒用户手动回复。
 
-> **配置分工（重要，勿误解）**：`vertical_focus` / `deep_answer` / `influence` 三个配置块是**给 agent 的写作规范**——脚本不读取、不会自动生效；agent 生成正文时必须主动读 config 并遵守。只有 `moments.min_words/max_words` 被 `post_moment.js` 读取（超出仅 WARN），以及各班 `shifts.*.interactions` 被 `run_shift.js` 读取执行。
+> **配置分工（重要，勿误解）**：`vertical_focus` / `deep_answer` / `influence` 三个配置块是**给 agent 的写作规范**——`vertical_focus`/`influence` 不被脚本读取；`deep_answer.min_words/max_words` 在参数文件写 `"deep": true` 时被 `run_shift.js` 用于字数护栏；各班 `shifts.*.interactions` 被 `run_shift.js` 读取执行。
+> **字数护栏（v1.3.3）**：`run_shift.js` 发布前校验 contentFile 字符数——标准区间 `answer_style.min/max_words`（250–800）、深度版（参数 `"deep": true`）区间 `deep_answer.min/max_words`（800–1200）。**超区间输出 `ANSWER_SKIPPED: WORD_COUNT_EXCEEDED` 并跳过发布**（点赞/互动照常收尾），压缩或扩写正文后重跑即可（已赞自动跳过）。
 
 ### 旧版单脚本（仍可用，按需）
 - `scripts/like_top5.js`：对指定问题在前 10 个回答里随机选 3–5 个点赞（env: `QID`，可选 `POOL`/`LIKE_MIN`/`LIKE_MAX` 覆盖默认）。
 - `scripts/write_answer.js`：写回答 + 发布（env: `QID` + `CONTENT_FILE`/`CONTENT`）。
-- `scripts/verify_fold.js`：按 `aid` 验证折叠（env: `AID`，可选 `QID`）。⚠️ 其 API 路径（serverFetch）8/26 起 403 失效，验证请改用 CLI。
-- `scripts/pick_question.js`：扫热榜按关键词过滤输出候选 qid（env: `KW`、`LIMIT`）。
+- `scripts/verify_via_cli.js`：折叠状态权威验证（参数文件 `/tmp/zhihu_verify_params.json`：`aid`/`type`，或 env `AID`/`TYPE`）。自动定位 zhihu-cli（PATH → macOS 默认路径），Summary 非空=未折叠。**替代已删除的 verify_fold.js**（其 serverFetch API 8/26 起恒 403）。
+- `scripts/pick_question.js`：扫热榜按关键词过滤输出候选 qid（env: `KW`、`LIMIT`）。⚠️ 本机 env 不透传，需把 `kwRaw` 改成硬编码或复制到 /tmp 修改后运行。
 - `scripts/post_moment.js`：发想法 / 动态（参数文件 `/tmp/zhihu_moment_params.json`，支持 `dryRun`）。
 - `scripts/edit_answer.js`：修改已发布回答（参数文件 `/tmp/zhihu_edit_params.json`：`aid`/`qid`/`contentFile`/`stripMarkdown`/`dryRun`）。⚠️ 已知限制：内容替换可行，但「提交修改」点击可能不生效（脚本会安全停止并提示人工确认）。
 
@@ -119,11 +120,15 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - ⚠️ **点赞按钮 innerText 含前导零宽字符 `\u200b`**（实测为 `"\u200b 已赞同 87"`），**不能用 `===` / `startsWith('赞同')` 精确匹配**；一律用 aria-label + trim（8/12 实测：innerText 精确匹配命中 0，aria-label 精确匹配命中）。
 - ✅ 「写回答」按钮文本前有零宽字符 `\u200b`，用 `.includes('写回答')`；「发布回答」按钮用 `innerText.trim() === '发布回答'` 的 js click 才稳。
 - 🚫 **发布卡「发布中…」disabled 即停**：不要重复点 / 重试（会在云端累积卡死草稿）。等待账号风控释放或手动在浏览器发布。
-- ⚠️ **验证发布/修改成功一律用官方 CLI**：`zhihu-cli me contents --type answer --limit 3`（摘要完整=未折叠；想法用 `--type pin`）。`serverFetch('/api/v4/answers/{aid}')` 自 8/26 起持续 403 已失效，`verify_fold.js` 的 API 路径随之不可靠；页面摘要/浏览器侧信号均有假阴性。
+- ⚠️ **验证发布/修改成功一律用官方 CLI**：`zhihu-cli me contents --type answer --limit 3`（摘要完整=未折叠；想法用 `--type pin`）。`serverFetch('/api/v4/answers/{aid}')` 自 8/26 起持续 403 已失效——v1.3.3 起 `run_shift.js` 已**移除** API 验证死路，改用 `scripts/verify_via_cli.js`；页面摘要/浏览器侧信号均有假阴性。
 
 ## 验证发布成功
 1. 发布后 URL 跳转 `/question/{qid}/answer/{aid}`。
-2. **权威校验**：`zhihu-cli me contents --type answer --limit 3` —— 最新一条即新回答、摘要完整 = 未折叠（折叠则摘要为空）。注意刚发布索引可能滞后（404/旧摘要），等 1–2 分钟再查；`run_shift.js` 内置的 `API_VERIFY` 因 serverFetch 403 恒为 `is_collapsed=?`，不代表失败。
+2. **权威校验**：`echo '{"aid":"<aid>","type":"answer"}' > /tmp/zhihu_verify_params.json && ego-browser nodejs < scripts/verify_via_cli.js` —— 输出 `VERIFY_RESULT: OK_NOT_COLLAPSED` 即成功（折叠则 `COLLAPSED`；`NOT_FOUND_YET` 是索引滞后，等 1–2 分钟重跑）。等价手工命令：`zhihu-cli me contents --type answer --limit 3` 看最新一条摘要是否完整。
+
+## 部署注意（本机 macOS 实测）
+- ego-browser 可能不在 shell PATH：用绝对路径 `~/.local/bin/ego-browser`。
+- zhihu-cli 通常不在 PATH：真实路径 `~/Library/Application Support/zhihu-cli/current/zhihu-cli`（verify_via_cli.js 已内置此回退）。
 
 ## 文件产出建议
 - 日报：`output/zhihu/YYYY-MM-DD-{shift}.md`（shift: morning / noon / evening）。
@@ -136,6 +141,12 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - references/workflow.md — config.json 配置、脚本调用方式、env 变量、示例命令
 
 ## 版本变更
+- **v1.3.3（2026-09-05）**：健康度清理与护栏增强（核心行为不变，删死路 + 护栏 + 文档同步）：
+  1. **移除 API_VERIFY 403 死路**：`run_shift.js` 不再对恒 403 的 serverFetch API 做 5 次重试（每班白耗约 60s + 报错噪音）。
+  2. **新增 `scripts/verify_via_cli.js`**：折叠权威验证脚本化（自动定位 zhihu-cli，含 macOS 默认路径回退），实测通过。
+  3. **删除 `scripts/verify_fold.js`**：整个脚本建立在已失效 API 上。
+  4. **字数护栏**：发布前按 config 区间校验字数，超限跳过发布（`ANSWER_SKIPPED: WORD_COUNT_EXCEEDED`）。
+  5. **references/ 文档全量同步** v1.3.2/v1.3.3 变更。
 - **v1.3.2（2026-09-05）**：在 v1.3.1 基础上合入本机（macOS + 特定 ego-browser 构建）实测必需的三处兼容性修正，避免纯覆盖 v1.3.1 后在本机养号失败：
   1. **点赞选择器**：`button.VoteButton:not(.VoteButton--down)`（v1.3.1，已失效）→ `button[aria-label*=赞同]`（无引号写法，规避 `js()` 二次求值引号错配）。影响 `run_shift.js`。
   2. **写回答注入**：`fillInput('.public-DraftEditor-content')`（v1.3.1，Draft.js 不认）→ `ClipboardEvent` 粘贴注入。影响 `run_shift.js` + `write_answer.js`。

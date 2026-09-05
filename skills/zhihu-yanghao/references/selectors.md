@@ -7,7 +7,8 @@
 | 已赞同判定 | `b.classList.contains('is-active')`（class 含 `VoteButton is-active`） | 再点会**取消**点赞（toggle 行为）；点赞前必须判此跳过，否则把已赞取消。innerText 含「已赞同」也可但不如 class 稳 |
 | ⚠️ 按钮 innerText 零宽字符 | `/赞同/.test(b.innerText)` 可命中，但 `b.innerText.trim()==='赞同 87'` 命中 0 | **8/12 实测**：innerText 实际为 `"\u200b 已赞同 87"`（前导零宽字符 `\u200b` + 空格）；**一律用 `aria-label` + `trim()` 做精确匹配**，绝不依赖 innerText 等值 |
 | 回答容器 | `[data-zop]` | 每个含 `itemId`（JSON.parse 取），用于去重遍历前 10 个作为随机选赞候选池 |
-| Draft.js 编辑器 | `.public-DraftEditor-content` | fillInput 目标；`\n\n` 分段保留段落 |
+| Draft.js 编辑器 | `.public-DraftEditor-content` | 正文注入目标。**v1.3.2 起新回答/想法用 ClipboardEvent 粘贴注入**（`fillInput` 在 Draft.js 上不稳，Draft.js 不认）；`\n\n` 分段 |
+| 正文粘贴注入（v1.3.2） | `ed.focus(); const dt=new DataTransfer(); dt.setData("text/plain", text); ed.dispatchEvent(new ClipboardEvent("paste", {clipboardData: dt, bubbles:true, cancelable:true, composed:true}))` | 实测 9/5 深度版 1147 字注入成功；修改已发布回答另用 `insertHTML`（见下节） |
 | 「写回答」按钮 | `button` 且 `innerText.includes('写回答')` | 文本前有零宽字符 `\u200b`，**不能**用 `===` |
 | 「查看我的回答」按钮 | `button` 且 innerText 含「查看我的回答」 | 出现 = 该问题已答过，5 天内避开 |
 | 「发布回答」按钮 | `button` 且 `innerText.trim() === '发布回答'` | 用 js click 才稳（8/7 实测 `Button--blue` 不稳定） |
@@ -16,7 +17,7 @@
 | 按时间排序菜单 | 找 `b.innerText.trim() === '默认排序'` 按钮，再点「按时间排序」 | 新回答默认排序靠后，验证可见性需切此 |
 | 历史类话题 ID | `19551077`（机器学习是 `19559450`，别搞混） | 话题页入口 |
 | 精华区 URL | `/topic/19551077/top-answers` | 带连字符；`/top_answers` 是 404 |
-| 折叠验证 | **权威：官方 CLI** `zhihu-cli me contents --type answer --limit 3`（最新一条摘要完整 = 未折叠）；想法用 `--type pin` | **⚠️ 8/26 起 `serverFetch('/api/v4/answers/{aid}')` 持续 403 已失效**，页面摘要只显示末尾段会误判——浏览器侧一律不可信，以 CLI 为准 |
+| 折叠验证 | **权威：官方 CLI**——优先用 `scripts/verify_via_cli.js`（v1.3.3，自动定位 zhihu-cli，输出 `VERIFY_RESULT: OK_NOT_COLLAPSED`）；手工等价 `zhihu-cli me contents --type answer --limit 3`（最新一条摘要完整 = 未折叠）；想法用 `--type pin` | **⚠️ 8/26 起 `serverFetch('/api/v4/answers/{aid}')` 持续 403 已失效**（verify_fold.js 已删除），页面摘要只显示末尾段会误判——浏览器侧一律不可信，以 CLI 为准 |
 
 ### 想法 / 动态（2026-08-31 实测）
 | 目标 | 选择器 / 判定 | 说明 |

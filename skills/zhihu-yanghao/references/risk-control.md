@@ -38,15 +38,14 @@
 - 🚫 **非 String.raw 乱码问题**：直接传 UTF-8 中文，fillInput 正常入 DOM，与卡死无关。
 - ✅ **处理原则**：发布卡「发布中」即停，**不要重复点 / 重复重试**（会在知乎云端累积卡死草稿，reload 不释放）；先等账号风控释放或手动在浏览器发布。
 - ✅ **验证成功与否的权威方式（2026-08-31 更新）**：官方 CLI `zhihu-cli me contents --type answer --limit 3` —— 最新一条即新回答、摘要完整 = 未折叠（折叠则摘要为空）。想法用 `--type pin`（想法类型是 **pin**，不是 moment）。
-- ❌ **serverFetch `/api/v4/answers/{aid}` 已失效（8/26 起）**：浏览器上下文调该 API 持续返 HTTP 403（近 3 次运行 5/5 全败），`run_shift.js` 的 `API_VERIFY` 步骤因此恒为 `is_collapsed=?`。**403 不影响发布本身**，只是验证手段失效——勿据此判定失败、勿重试发布。历史方法（8/5 曾有效）：`serverFetch(...include=content,is_collapsed,voteup_count,updated_time)`，仅作存档参考。
+- ❌ **serverFetch `/api/v4/answers/{aid}` 已失效（8/26 起）**：浏览器上下文调该 API 持续返 HTTP 403。**403 不影响发布本身**，只是验证手段失效——勿据此判定失败、勿重试发布。**v1.3.3 起 `run_shift.js` 已移除 API_VERIFY 死路（不再 5 次重试白耗约 60s）**，折叠验证统一走 `scripts/verify_via_cli.js`；`verify_fold.js` 已删除。历史方法（8/5 曾有效）：`serverFetch(...include=content,is_collapsed,voteup_count,updated_time)`，仅作存档参考。
 - ⚠️ **草稿箱路径已变**：`/creator/manage/draft` 返回 404，旧路径失效。
 - ✅ **已验证恢复**：解封约 4 天后（8/3 → 8/7）重发回答成功，确认卡死为**临时风控窗口**非永久问题，「每天 1 回答」节奏可正常继续。
 
 ## Draft.js 输入方法（8/4 乱码事故后总结）
 - 🚫 **永远不要用 `String.raw` 转义中文**——`String.raw` 不解析转义，输出字面字符。
-- ✅ **fillInput 永远直接传 UTF-8 中文字符串**（如 `await fillInput('.public-DraftEditor-content', '到中年...')`）。
-- ✅ **Draft.js 新回答 fillInput 流程**：从 0 内容状态 fillInput + `\n\n` 分段可保留段落格式。
+- ✅ **新回答/想法正文注入（v1.3.2 起）**：用 `ClipboardEvent` 粘贴注入（`run_shift.js` / `write_answer.js` / `post_moment.js` 已内置）；旧 `fillInput` 在 Draft.js 上不稳。
 - ⚠️ **修改回答的清空 + 重填**：用 `execCommand('insertHTML', false, '<p>...</p>...')` 注入 HTML 是保留首段的唯一方法（`ClipboardEvent paste` 会 strip 短单行首段）。
-- ⚠️ **「发布中…」持续 60+ 秒是 UI 假象**——不要用页面状态判断，用官方 CLI `me contents` 验证（serverFetch 已 403 失效）。
+- ⚠️ **「发布中…」持续 60+ 秒是 UI 假象**——不要用页面状态判断，用官方 CLI `me contents`（或 `verify_via_cli.js`）验证。
 - ⚠️ **同一回答短时间内多次修改会被限流**——知乎对 ~30 分钟内第二次修改不更新 updated_time。
 - ⚠️ **serverFetch 已失效（8/26 起 403）**。历史记录：曾带 ego-browser 登录态拿到完整 content 字段（curl 拿不到），现验证一律走官方 CLI。
