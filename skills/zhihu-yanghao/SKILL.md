@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.3
+# 知乎养号（zhihu-yanghao）v1.3.4
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -51,16 +51,28 @@ agent_created: true
 
 ```bash
 ego-browser nodejs <<'EOF'
+const fs = require('fs');
 process.env.CONFIG = '/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/config.json';
 process.env.SHIFT = 'morning';
-const fs = require('fs');
+const keep = setInterval(function () {}, 1000);
 const src = fs.readFileSync('/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/scripts/run_shift.js', 'utf8');
-(function(){ eval(src); })();
+Promise.resolve(eval(src)).then(
+  function () { clearInterval(keep); cliLog('=== SHIFT_DONE_OK ==='); },
+  function (e) { clearInterval(keep); cliLog('=== SHIFT_ERROR: ' + (e && e.message) + ' ==='); }
+);
 EOF
 ```
+
+> ⚠️ **上面这个启动器有三条硬约束，改动前先看（2026-09-05 实测踩坑）**：
+> ① **heredoc 里不能出现顶层 `await`**——`require` 与顶层 `await` 同时存在会触发 node 模块格式自动探测冲突，直接报 `ReferenceError: Cannot determine intended module format`。这不是本机环境问题，**所有机器都一样**。
+> ② **`eval(src)` 返回的 Promise 必须有人接管**（上面的 `.then`）。脚本主体是 `(async () => {...})()`，若写成 `(function(){ eval(src); })()`，运行时会认为同步代码已跑完并结束会话，异步流程被丢弃——症状是「跑了三四分钟、零输出、什么都没做」。
+> ③ `setInterval` 保活，防止进程在等待浏览器 I/O 时提前退出。
+> 备选：确实需要顶层 await 时改用 `import fs from 'node:fs'`（ESM 模式），但 eval 进来的脚本内部若有 `require` 会挂。
+> 📌 另注：`cliLog` 输出走 **stderr**，且**延迟到进程结束才 flush**；后台运行时中途看不到日志是正常现象，不要误判为卡死。
+
 三班只需改 `process.env.SHIFT` 为 `noon` / `evening`；指定问题覆盖时额外 `process.env.QID = '...'` + `process.env.CONTENT_FILE = '/tmp/answer.txt'`。
 
-> 📌 **本机保留修正（勿在下次 GitHub 更新时回退）**：① 点赞选择器用 `button[aria-label*=赞同]`（新版知乎 `VoteButton` 已失效）；② 写回答用 `ClipboardEvent` 粘贴注入（Draft.js 不认 `fillInput`）；③ 上方 heredoc 注入 env（覆盖 `CONFIG=...` 写法）。这三条是本机 8/11–8/16 实测结论。脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
+> 📌 **本机保留修正（勿在下次 GitHub 更新时回退）**：① 点赞选择器用 `button[aria-label*=赞同]`（新版知乎 `VoteButton` 已失效）；② 写回答用 `ClipboardEvent` 粘贴注入（Draft.js 不认 `fillInput`）；③ 上方 heredoc 注入 env + `.then` 接管 Promise（覆盖 `CONFIG=...` 写法与裸 `eval` 写法）；④ 关注问题按钮按 `FollowButton` class 匹配（页面文案是「关注」/「已关注」，**从不存在**「关注问题」四个字，旧写法永远返回 `no_button`）。前三条是本机 8/11–8/16 实测结论，第 ④ 条为 9/5 实测。脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
 
 ## 创作分提升四件套（v1.3.0）
 针对知乎创作分六维体系（创作活跃度 / 创作垂直度 / 内容优质分 / 创作影响力 / 关注者亲密度 / 社区成就分）的定向优化，全部由 `config.json` 驱动：
@@ -141,6 +153,9 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - references/workflow.md — config.json 配置、脚本调用方式、env 变量、示例命令
 
 ## 版本变更
+- **v1.3.4（2026-09-05）**：补齐两个「写了但从未真正生效」的实测修复（均经同一页面对照实证验证）：
+  1. **关注问题按钮选择器**（`run_shift.js`）：旧写法按 innerText 匹配 `"关注问题"`，但知乎页面上该控件文案只有「关注」/「已关注」（class `FollowButton`），字符串 `"关注问题"` 从未出现过，故永远返回 `no_button`。改为**先按 `FollowButton` class 匹配、回退按文案精确匹配**；命中「已关注」判为 `already`，避免误点成取消关注。实证：同一页面旧写法 `no_button` → 新写法 `already`。
+  2. **启动器必须接管 Promise**（`SKILL.md` 运行模式）：原示例 `(function(){ eval(src); })()` 中，`(async () => {...})()` 返回的 Promise 无人接管，运行时判定同步代码已跑完即结束会话，异步流程被整体丢弃——症状是「跑了三四分钟、零输出、什么都没做」。改为 `Promise.resolve(eval(src)).then(ok, err)` + `setInterval` 保活，并固化三条硬约束：heredoc 内禁用顶层 await（`require` 与顶层 await 并存会触发 node 模块格式自动探测冲突，报 `Cannot determine intended module format`，**非本机特例，所有机器同理**）、Promise 必须有人接管、保活定时器。另补充 `cliLog` 走 stderr 且延迟到进程结束才 flush 的提示（避免后台运行时误判卡死）。
 - **v1.3.3（2026-09-05）**：健康度清理与护栏增强（核心行为不变，删死路 + 护栏 + 文档同步）：
   1. **移除 API_VERIFY 403 死路**：`run_shift.js` 不再对恒 403 的 serverFetch API 做 5 次重试（每班白耗约 60s + 报错噪音）。
   2. **新增 `scripts/verify_via_cli.js`**：折叠权威验证脚本化（自动定位 zhihu-cli，含 macOS 默认路径回退），实测通过。

@@ -319,9 +319,11 @@
   if (interactions.follow) {
     const done = await js('(() => {'
       + ' const btns = Array.from(document.querySelectorAll("button"));'
-      + ' const b = btns.find(function (x) { return x.innerText.indexOf("关注问题") >= 0; });'
+      + ' const hit = function (x) { const t = x.innerText.trim(); return t === "关注" || t === "已关注"; };'
+      + ' const b = btns.find(function (x) { return String(x.className || "").indexOf("FollowButton") >= 0; })'
+      + '   || btns.find(hit);'
       + ' if (!b) return "no_button";'
-      + ' if (b.innerText.indexOf("取消关注") >= 0) return "already";'
+      + ' if (b.innerText.trim().indexOf("已关注") >= 0) return "already";'
       + ' b.click(); return "clicked";'
       + '})()')
     cliLog('FOLLOW_QUESTION: ' + done)
