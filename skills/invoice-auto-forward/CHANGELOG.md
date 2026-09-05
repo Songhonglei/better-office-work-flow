@@ -3,7 +3,9 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-### Unreleased
+### v1.0.9 (2026-09-05)
+
+无功能变更，`scripts/invoice_forward.py` 行为与 v1.0.8 完全一致。全部为文档改进与勘误。
 
 #### Fixed
 

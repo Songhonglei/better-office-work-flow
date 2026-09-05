@@ -44,7 +44,7 @@ from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-__version__ = "1.0.8"
+__version__ = "1.0.9"
 
 DEFAULT_CONFIG_PATH = os.path.expanduser("~/.workbuddy/invoice-forward/config.json")
 DEFAULTS = {

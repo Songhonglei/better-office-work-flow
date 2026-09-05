@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - ⚠️ **innerText 零宽字符坑**：实测点赞按钮 innerText 为 `"\u200b 已赞同 87"`（前导零宽字符），不能用 `===`/`startsWith` 精确匹配，一律走 aria-label + trim。
   - ✅ **发布验证强化**：`run_shift.js` 验证步骤加 `updated_time` + content 乱码检测，对应「发布中…」卡 UI 假象（8/5 验证）。
   - ✅ **连续发文错峰**：补充「同主线不同子方向也要错峰」（8/11 父子→8/12 中年女性实证），写入风控与选题策略。
-- **invoice-auto-forward** 文档增强（v1.0.8 之后的文档改动，未发版）：
+- **invoice-auto-forward** v1.0.9 — 文档增强与勘误（无功能变更，脚本行为与 v1.0.8 一致）：
   - 新增「输出解读」章节：明确「跳过」= 抬头白名单不命中（正确过滤，**不是漏发**），与「无发票」（解析/下载失败）是两条独立分支；排查漏发应看后者。此前该语义只存在于源码中。
   - 新增「定时任务（无人值守）」章节：⚠️ 脚本与配置必须落在持久目录（记录了自制脚本放 `output/` 被清理、导致定时任务连续静默失败 25 天的事故）；提供 WorkBuddy automation prompt 参考模板与 crontab 行。
   - 补充每日报告文件说明（`~/.workbuddy/invoice-forward/报告_YYYYMMDD.md`，此前文档未提）。
