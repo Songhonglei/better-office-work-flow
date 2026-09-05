@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.1
+# 知乎养号（zhihu-yanghao）v1.3.2
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -47,17 +47,20 @@ agent_created: true
 
 ## 运行模式（推荐：三班编排）
 用 `scripts/run_shift.js` 一把跑完一个班的「选题(可轮转) → 点赞 → 写回答 → 验证 → 可选收藏/关注/评论」，配置全在 `config.json`：
-```
-# 早班（按 config 轮转话题 + 写1回答 + 仅点赞）
-CONFIG=/path/config.json SHIFT=morning ego-browser nodejs < scripts/run_shift.js
+> ⚠️ **环境变量注意（本机实测关键）**：部分 ego-browser 构建的 `nodejs` 子命令**不继承 shell 环境变量**（`CONFIG`/`SHIFT` 会被丢弃，且进程 `cwd` 锁死为 `/`）。因此 `CONFIG=... SHIFT=... ego-browser nodejs < script` 在本机跑不起来。可靠写法见下方 heredoc。
 
-# 午班（写1回答 + 点赞 + 收藏 + 关注，依 config.interactions）
-CONFIG=/path/config.json SHIFT=noon ego-browser nodejs < scripts/run_shift.js
-
-# 指定问题覆盖（跳过自动选题）
-SHIFT=evening QID=2021300214389043782 CONTENT_FILE=/tmp/answer.txt ego-browser nodejs < scripts/run_shift.js
+```bash
+ego-browser nodejs <<'EOF'
+process.env.CONFIG = '/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/config.json';
+process.env.SHIFT = 'morning';
+const fs = require('fs');
+const src = fs.readFileSync('/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/scripts/run_shift.js', 'utf8');
+(function(){ eval(src); })();
+EOF
 ```
-脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
+三班只需改 `process.env.SHIFT` 为 `noon` / `evening`；指定问题覆盖时额外 `process.env.QID = '...'` + `process.env.CONTENT_FILE = '/tmp/answer.txt'`。
+
+> 📌 **本机保留修正（勿在下次 GitHub 更新时回退）**：① 点赞选择器用 `button[aria-label*=赞同]`（新版知乎 `VoteButton` 已失效）；② 写回答用 `ClipboardEvent` 粘贴注入（Draft.js 不认 `fillInput`）；③ 上方 heredoc 注入 env（覆盖 `CONFIG=...` 写法）。这三条是本机 8/11–8/16 实测结论。脚本内部已含「已答过跳过 + 已赞跳过 + 随机选赞（前10随机3-5） + 发布卡死即停 + is_collapsed 验证带 retry(3-5次/10-15s)」。详细 env 与配置见 references/workflow.md。
 
 ## 创作分提升四件套（v1.3.0）
 针对知乎创作分六维体系（创作活跃度 / 创作垂直度 / 内容优质分 / 创作影响力 / 关注者亲密度 / 社区成就分）的定向优化，全部由 `config.json` 驱动：
@@ -131,3 +134,11 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - references/selectors.md — DOM 选择器 + ego-browser API 速查
 - references/topic-strategy.md — 全局话题池、心智定位、三班轮转
 - references/workflow.md — config.json 配置、脚本调用方式、env 变量、示例命令
+
+## 版本变更
+- **v1.3.2（2026-09-05）**：在 v1.3.1 基础上合入本机（macOS + 特定 ego-browser 构建）实测必需的三处兼容性修正，避免纯覆盖 v1.3.1 后在本机养号失败：
+  1. **点赞选择器**：`button.VoteButton:not(.VoteButton--down)`（v1.3.1，已失效）→ `button[aria-label*=赞同]`（无引号写法，规避 `js()` 二次求值引号错配）。影响 `run_shift.js`。
+  2. **写回答注入**：`fillInput('.public-DraftEditor-content')`（v1.3.1，Draft.js 不认）→ `ClipboardEvent` 粘贴注入。影响 `run_shift.js` + `write_answer.js`。
+  3. **想法正文注入**：`post_moment.js` 同 `fillInput` 坑，一并改为 `ClipboardEvent` 粘贴注入。
+  4. **运行示例**：v1.3.1 的 `CONFIG=... SHIFT=... ego-browser nodejs < script` 在本机不继承 shell 环境变量（cwd 锁死 `/`、CONFIG/SHIFT 被丢弃），改为 heredoc 内联 `process.env.X` + `fs.readFileSync` + `eval(主脚本)` 的可靠写法（见「运行模式」）。
+  - 注：以上修正仅针对本机环境；在其他正常继承 env 的机器上，`CONFIG=...` 前缀写法仍可工作。个人 `config.json` 不上传，请复制 `config.example.json` 自建。

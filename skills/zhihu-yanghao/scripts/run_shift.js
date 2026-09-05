@@ -188,7 +188,7 @@
       + '   if (!zop.itemId || seen.has(zop.itemId)) continue;'
       + '   seen.add(zop.itemId);'
       + '   if (arr.length >= ' + likeSpec.pool + ') break;'
-      + '   const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
+      + '   const b = nodes[i].querySelector("button[aria-label*=赞同]");'
       + '   arr.push({ itemId: zop.itemId, voteText: b ? b.innerText.trim() : "" });'
       + ' }'
       + ' return arr;'
@@ -216,7 +216,7 @@
         + ' for (let i = 0; i < nodes.length; i++) {'
         + '   let zop; try { zop = JSON.parse(nodes[i].getAttribute("data-zop")); } catch (e) { continue; }'
         + '   if (zop.itemId === id) {'
-        + '     const b = nodes[i].querySelector("button.VoteButton:not(.VoteButton--down)");'
+        + '     const b = nodes[i].querySelector("button[aria-label*=赞同]");'
         + '     if (b) { b.click(); return b.innerText.trim(); }'
         + '   }'
         + ' }'
@@ -247,7 +247,21 @@
         + '})()')
       cliLog('editor-opened: ' + opened)
       await wait(3)
-      await fillInput('.public-DraftEditor-content', content)
+      await js('((text) => {'
+        + ' const editor = document.querySelector(".public-DraftEditor-content");'
+        + ' if (!editor) return false;'
+        + ' editor.focus();'
+        + ' const range = document.createRange();'
+        + ' range.selectNodeContents(editor);'
+        + ' range.collapse(false);'
+        + ' const sel = window.getSelection();'
+        + ' sel.removeAllRanges();'
+        + ' sel.addRange(range);'
+        + ' const dt = new DataTransfer();'
+        + ' dt.setData("text/plain", text);'
+        + ' editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true, composed: true }));'
+        + ' return true;'
+        + '})(' + JSON.stringify(content) + ')')
       await wait(2)
       cliLog('risk-control wait 60s before publish...')
       await wait(60)

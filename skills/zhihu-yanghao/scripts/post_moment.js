@@ -98,7 +98,22 @@
 
   // ---------- 4. 填正文 ----------
   try {
-    await fillInput('.public-DraftEditor-content', content)
+    const ok = await js('((text) => {'
+      + ' const editor = document.querySelector(".public-DraftEditor-content");'
+      + ' if (!editor) return false;'
+      + ' editor.focus();'
+      + ' const range = document.createRange();'
+      + ' range.selectNodeContents(editor);'
+      + ' range.collapse(false);'
+      + ' const sel = window.getSelection();'
+      + ' sel.removeAllRanges();'
+      + ' sel.addRange(range);'
+      + ' const dt = new DataTransfer();'
+      + ' dt.setData("text/plain", text);'
+      + ' editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true, composed: true }));'
+      + ' return true;'
+      + '})(' + JSON.stringify(content) + ')')
+    if (!ok) throw new Error('DraftEditor not found, 想法内容未注入')
     cliLog('FILLED: ok')
   } catch (e) {
     cliLog('FILL_FAILED: ' + e.message + ' — 若报 Element not found，先查登录态（页面是否「登录/注册」）')

@@ -22,8 +22,22 @@
   cliLog('editor-opened: ' + opened)
   await wait(3)
 
-  // 直接 UTF-8 中文，勿用 String.raw；content 内用空行分段（fillInput 保留段落）
-  await fillInput('.public-DraftEditor-content', content)
+  // 直接 UTF-8 中文，勿用 String.raw；content 内用空行分段（ClipboardEvent 粘贴保留段落）
+  await js('((text) => {'
+    + ' const editor = document.querySelector(".public-DraftEditor-content");'
+    + ' if (!editor) return false;'
+    + ' editor.focus();'
+    + ' const range = document.createRange();'
+    + ' range.selectNodeContents(editor);'
+    + ' range.collapse(false);'
+    + ' const sel = window.getSelection();'
+    + ' sel.removeAllRanges();'
+    + ' sel.addRange(range);'
+    + ' const dt = new DataTransfer();'
+    + ' dt.setData("text/plain", text);'
+    + ' editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true, composed: true }));'
+    + ' return true;'
+    + '})(' + JSON.stringify(content) + ')')
   await wait(2)
 
   cliLog('risk-control wait 60s before publish...')
