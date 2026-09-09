@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.4
+# 知乎养号（zhihu-yanghao）v1.3.5
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -109,7 +109,8 @@ EOF
 影响力 ≠ 点赞数。**收藏、评论、分享的权重高于赞同**——自动点赞只贡献赞同，必须靠内容质量拉动收藏与评论。每篇回答必须满足：
 - **hook**：开头或中段抛 1 个反直觉 / 反常识观点，让人产生想反驳或补充的冲动（拉评论）。
 - **actionable**：至少 1 个可操作清单 / 判断框架 / 步骤（如「判断 X 的 3 步法」）（拉收藏）。
-- **cta**：结尾 1 句轻量引导互动，不硬求赞、不套路。
+- **cta**：结尾**禁止机械问号收尾**（如「你觉得…？」「你遇到过类似情况吗？」——典型 AI 味收尾，2026-09-09 用户明确反馈）。用观点 / 判断 / 留白自然收束；互动引导靠观点本身的争议性，不在结尾向读者提问。
+- **去 AI 味自检（发布前必做，接 text-humanize skill 中文模式）**：① 结尾无问号互动收尾；② 编号列表尽量融进叙述（纯文本「1.」仅在清单天然成立时用）；③ 破折号「——」≤1 处；④ 至少 1–2 个语气词（吧 / 嘛 / 说白了 / 讲真 / 还挺）；⑤ 节奏参差，别句句等长；⑥ 不追求零错别字，可留 1 处「的/地/得」类小瑕疵。
 - **评论回复**：发布后 24h 内回复全部评论（`config.influence.comment_reply`），互动率直接影响影响力分。**由 agent 执行（无脚本）**：agent 应在下一次养号任务开始时，先用 CLI 查上一班回答的评论并回复，或提醒用户手动回复。
 
 > **配置分工（重要，勿误解）**：`vertical_focus` / `deep_answer` / `influence` 三个配置块是**给 agent 的写作规范**——`vertical_focus`/`influence` 不被脚本读取；`deep_answer.min_words/max_words` 在参数文件写 `"deep": true` 时被 `run_shift.js` 用于字数护栏；各班 `shifts.*.interactions` 被 `run_shift.js` 读取执行。
@@ -153,6 +154,10 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - references/workflow.md — config.json 配置、脚本调用方式、env 变量、示例命令
 
 ## 版本变更
+- **v1.3.5（2026-09-09）**：内容去 AI 味与选题错峰（写作规范修订，脚本无改动）：
+  1. **cta 禁止机械问号收尾**：「你觉得…？」「你遇到过类似情况吗？」这类结尾是典型 AI 味收尾（读者已免疫），改为观点/判断/留白收束，互动引导靠观点本身的争议性。同步修订 config `influence.cta`、topic-strategy、workflow。
+  2. **发布前去 AI 味自检（必做，接 text-humanize skill 中文模式）**：结尾无问号互动收尾；编号列表尽量融进叙述；破折号「——」≤1；语气词 1–2 个（吧/嘛/说白了/讲真/还挺）；节奏参差；可留 1 处「的/地/得」类小瑕疵。
+  3. **轮转重叠顺延**：本班轮转词与当日已答班次题材同域同主方向时（如午班刚写西游记、晚班轮转又给神话），agent 选题顺延到 pool 下一词，优先保证跨班领域交替，防单一人设指纹。
 - **v1.3.4（2026-09-05）**：补齐两个「写了但从未真正生效」的实测修复（均经同一页面对照实证验证）：
   1. **关注问题按钮选择器**（`run_shift.js`）：旧写法按 innerText 匹配 `"关注问题"`，但知乎页面上该控件文案只有「关注」/「已关注」（class `FollowButton`），字符串 `"关注问题"` 从未出现过，故永远返回 `no_button`。改为**先按 `FollowButton` class 匹配、回退按文案精确匹配**；命中「已关注」判为 `already`，避免误点成取消关注。实证：同一页面旧写法 `no_button` → 新写法 `already`。
   2. **启动器必须接管 Promise**（`SKILL.md` 运行模式）：原示例 `(function(){ eval(src); })()` 中，`(async () => {...})()` 返回的 Promise 无人接管，运行时判定同步代码已跑完即结束会话，异步流程被整体丢弃——症状是「跑了三四分钟、零输出、什么都没做」。改为 `Promise.resolve(eval(src)).then(ok, err)` + `setInterval` 保活，并固化三条硬约束：heredoc 内禁用顶层 await（`require` 与顶层 await 并存会触发 node 模块格式自动探测冲突，报 `Cannot determine intended module format`，**非本机特例，所有机器同理**）、Promise 必须有人接管、保活定时器。另补充 `cliLog` 走 stderr 且延迟到进程结束才 flush 的提示（避免后台运行时误判卡死）。

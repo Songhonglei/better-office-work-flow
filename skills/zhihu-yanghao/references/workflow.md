@@ -1,4 +1,4 @@
-# 工作流与脚本调用（zhihu-yanghao v1.3.3）
+# 工作流与脚本调用（zhihu-yanghao v1.3.5）
 
 ## 运行环境要求
 - 命令前缀：`ego-browser nodejs`（Bash 工具必须加 `dangerouslyDisableSandbox: true`，且 WorkBuddy 安全中心「沙箱安全」开关临时关闭）。否则 ego-browser 连不上（报 `Failed to connect to ego_cli bootstrap`）。
@@ -13,7 +13,7 @@
    - `topic_pool`：全局话题池（数组）。三班按「日序号 + 班次偏移」轮转取关键词。历史类与人文类**交替排列**，保证每班取到的 3 个词横跨两个垂直领域。
    - `answer_style`：标准回答字数区间与视角提示（LLM 写回答时参考）。
    - **`deep_answer`**（v1.3.0）：深度版配置。`frequency: "weekly"`；`mode` = `auto`（用户邀请优先 + 每周随机兜底）/ `invite`（仅用户邀请）/ `random`（仅自动随机）；`min_words`/`max_words` = 800–1200；`requirements` = 硬料 + 对比结构 + 可操作结论三项。
-   - **`influence`**（v1.3.0）：创作影响力规范。`hook`（反直觉观点拉评论）、`actionable`（清单/框架拉收藏）、`cta`（结尾轻量引导）、`comment_reply`（发布后 24h 内回评论）。
+   - **`influence`**（v1.3.0）：创作影响力规范。`hook`（反直觉观点拉评论）、`actionable`（清单/框架拉收藏）、`cta`（结尾禁止机械问号收尾，用观点/留白收束；2026-09-09 修订）、`comment_reply`（发布后 24h 内回评论）。**发布前正文过 text-humanize（中文模式）去 AI 味自检**。
    - **`moments`**（v1.3.0）：想法/动态配置。`per_week` = 每周条数（默认 4）；`min_words`/`max_words` = 50–150；`topics` = 内容方向。
    - `shifts`：三个班次，每班含：
      - `enabled`：是否启用该班。
