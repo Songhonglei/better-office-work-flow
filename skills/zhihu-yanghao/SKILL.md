@@ -4,7 +4,7 @@ description: This skill provides the full Zhihu account-nurturing (养号) workf
 agent_created: true
 ---
 
-# 知乎养号（zhihu-yanghao）v1.3.5
+# 知乎养号（zhihu-yanghao）v1.3.6
 
 一套依赖 ego-browser 的知乎养号全流程，支持 **垂直领域收敛 + 用户可配置话题池 + 早/中/晚三班节奏 + 深度版回答 + 想法发布 + 影响力规范**：
 
@@ -162,6 +162,9 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - references/workflow.md — config.json 配置、脚本调用方式、env 变量、示例命令
 
 ## 版本变更
+- **v1.3.6（2026-09-12）**：修复驻留进程 env 粘滞导致的 deep 标志静默失效（文档修正，脚本无改动）：
+  1. **启动器模板增加显式 delete**：ego-browser nodejs 为驻留进程，`process.env` 跨调用残留——上次 heredoc 设过的 `SHIFT`/`QID`/`CONTENT_FILE` 会让 `run_shift.js` 的 loadParams 跳过参数文件，`deep` 等仅存在于 `/tmp/zhihu_shift_params.json` 的字段被静默丢弃（深度版正文被按标准区间拦下，日志缺 `PARAMS_FROM_FILE` 行为判别特征）。模板现在先 `delete process.env.SHIFT/QID/CONTENT_FILE/CONTENT` 再设新值。
+  2. 「关键陷阱」新增该条目，含症状与判别方法。2026-09-12 午班实测：同稿三轮被拦，清理残留 env 后第四轮 `WORD_COUNT_OK (deep)` 一次通过。
 - **v1.3.5（2026-09-09）**：内容去 AI 味与选题错峰（写作规范修订，脚本无改动）：
   1. **cta 禁止机械问号收尾**：「你觉得…？」「你遇到过类似情况吗？」这类结尾是典型 AI 味收尾（读者已免疫），改为观点/判断/留白收束，互动引导靠观点本身的争议性。同步修订 config `influence.cta`、topic-strategy、workflow。
   2. **发布前去 AI 味自检（必做，接 text-humanize skill 中文模式）**：结尾无问号互动收尾；编号列表尽量融进叙述；破折号「——」≤1；语气词 1–2 个（吧/嘛/说白了/讲真/还挺）；节奏参差；可留 1 处「的/地/得」类小瑕疵。
