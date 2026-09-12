@@ -52,6 +52,13 @@ agent_created: true
 ```bash
 ego-browser nodejs <<'EOF'
 const fs = require('fs');
+// ⚠️ 驻留进程 env 粘滞（2026-09-12 本机实测）：ego-browser nodejs 的 process.env 跨调用残留，
+// 上次设过的 SHIFT/QID/CONTENT_FILE 会一直活着，导致 loadParams 判 p.shift 为真、跳过参数文件，
+// deep 等仅存在于参数文件的字段永远读不到。启动器必须显式 delete。
+delete process.env.SHIFT;
+delete process.env.QID;
+delete process.env.CONTENT_FILE;
+delete process.env.CONTENT;
 process.env.CONFIG = '/Users/songhonglei/.workbuddy/skills/zhihu-yanghao/config.json';
 process.env.SHIFT = 'morning';
 const keep = setInterval(function () {}, 1000);
@@ -127,6 +134,7 @@ EOF
 DOM 选择器、按钮点击要点见 references/selectors.md。
 
 ## 关键陷阱（务必先看）
+- ⚠️ **ego-browser nodejs 驻留进程 env 粘滞**（2026-09-12 实测）：`process.env` 跨调用残留——上次 heredoc 里设过的 `SHIFT`/`QID`/`CONTENT_FILE` 在后续所有调用中依然存活。`run_shift.js` 的 loadParams 只在 `p.shift` 为空时才读参数文件，因此 deep 等仅存在于 `/tmp/zhihu_shift_params.json` 的字段会被静默丢弃（症状：深度版正文被按标准区间 250-800 拦下报 `WORD_COUNT_EXCEEDED (standard)`，且日志里没有 `PARAMS_FROM_FILE`）。修复：启动器里 `delete process.env.SHIFT/QID/CONTENT_FILE/CONTENT` 再设新值；判别特征＝输出缺 `PARAMS_FROM_FILE` 这一行。
 - 🚫 **生成回答禁止输出 Markdown**（9/1）：编辑器不渲染，`**` / `- ` 按字面残留。纯文本排版用「1.」「· 」、破折号强调。
 - 🚫 **永远不要对中文用 `String.raw`**（8/4 乱码事故）：`fillInput` 直接传 UTF-8 字符串。
 - ✅ **点赞按钮（8/11 实测修正）**：旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 在新版知乎**已失效**；改用 `button[aria-label*="赞同"]`，aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 trim**），已赞判定用 `classList.contains('is-active')`（class 含 `VoteButton is-active`）。
