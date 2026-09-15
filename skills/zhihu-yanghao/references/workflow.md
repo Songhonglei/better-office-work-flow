@@ -8,7 +8,7 @@
 ## 配置 config.json（用户自定义话题与班次）
 1. 复制模板：`cp config.example.json config.json`（config.json 不纳入版本库，按你账号改）。
 2. 关键字段：
-   - `account`：知乎账号 ID（如 `kong-you-77`），用于日报/主页验证。
+   - `account`：知乎账号 ID（如 `your-account-id`），用于日报/主页验证。
    - **`vertical_focus`**（v1.3.0）：垂直度收敛配置。`primary` = 只养的 2 个领域（当前「趣味历史」+「人文心理」）；`keyword_hints` = 各领域关键词，写作时自然融入 2–3 个帮算法打标签。**🚫 不在 `primary` 之外的话题下写回答**，否则垂直度永远点不亮。
    - `topic_pool`：全局话题池（数组）。三班按「日序号 + 班次偏移」轮转取关键词。历史类与人文类**交替排列**，保证每班取到的 3 个词横跨两个垂直领域。
    - `answer_style`：标准回答字数区间与视角提示（LLM 写回答时参考）。
@@ -157,6 +157,10 @@ env 写法（其他机器若透传 env 可用）：`SHIFT=morning CONFIG=/abs/co
 > ⚠️ **本机实测（macOS / ego-browser nodejs）不向运行时透传 shell 环境变量**——`process.env.*` 全为 `UNDEF`，故 heredoc/env 内联写法在本环境会失败。统一用「参数文件 `/tmp/zhihu_shift_params.json` + 不带 env 的 `ego-browser nodejs < scripts/run_shift.js`」最稳。脚本已同时兼容 env（其他机器若透传仍可用）。
 
 脚本流程：读配置 → 轮转取关键词 → 选未答过问题（或 QID 覆盖）→ 前10随机选3-5点赞（自然化）→ 字数护栏校验 → 写/发布1回答 → 按 interactions 做可选收藏/关注/评论。已内置「已答过跳过 + 已赞跳过 + 随机选赞 + 发布卡死即停 + 字数护栏」。折叠验证见上方 verify_via_cli.js。
+
+> **v1.3.7 起：班次前置步骤 = 折叠巡检**（`scripts/fold_audit.js`）——每班开跑先与基线比对，抓 `NEW_FOLDED`（新被折叠）/`RECOVERED`；发现新增折叠要在日报记录并在写作时收紧去指纹化规范。**折叠权威信号 = 创作者中心「被折叠」标签**，CLI Summary 在新「隐藏机制」下失明（详见 selectors.md 折叠验证行）。
+>
+> **发布失败处置（v1.3.7）**：`run_shift.js` 现在会在发布未成功时输出 `SHIFT_PARTIAL_FAIL: publish`（此前只在日志里留 WARN 却照常报 `SHIFT_DONE`，无人值守会误判成功）。看到该行＝正文未发布，同问题页**最多重试 1 次**，再失败停 1–2 小时或换班次（同页 15 分钟内连续开编辑器会触发「写回答」不挂载编辑器的密度信号）。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：

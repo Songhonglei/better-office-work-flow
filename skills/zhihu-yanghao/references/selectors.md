@@ -11,13 +11,13 @@
 | 正文粘贴注入（v1.3.2） | `ed.focus(); const dt=new DataTransfer(); dt.setData("text/plain", text); ed.dispatchEvent(new ClipboardEvent("paste", {clipboardData: dt, bubbles:true, cancelable:true, composed:true}))` | 实测 9/5 深度版 1147 字注入成功；修改已发布回答另用 `insertHTML`（见下节） |
 | 「写回答」按钮 | `button` 且 `innerText.includes('写回答')` | 文本前有零宽字符 `\u200b`，**不能**用 `===` |
 | 「查看我的回答」按钮 | `button` 且 innerText 含「查看我的回答」 | 出现 = 该问题已答过，5 天内避开 |
-| 「发布回答」按钮 | `button` 且 `innerText.trim() === '发布回答'` | 用 js click 才稳（8/7 实测 `Button--blue` 不稳定） |
+| 「发布回答」按钮 | `button` 且 **清洗零宽字符后**文本 ∈ `["发布回答","提交回答"]`（`replace(/[\u200b\s]+/g,'')`），回退候选「发布」仅在存在 `.public-DraftEditor-content` 时启用 | 用 js click 才稳（8/7 实测 `Button--blue` 不稳定）。**⚠️ v1.3.7 修正**：旧写法 `innerText.trim() === '发布回答'` **不可用**——`trim()` 不去 `\u200b`，按钮带零宽字符时静默 `publish-clicked: false`（正文已填、URL 不跳转、无报错；2026-09-15 实测踩坑） |
 | 发布成功标志 | URL 跳转 `/question/{qid}/answer/{aid}` | 约 5 秒后跳转；按钮变 disabled +「发布中…」 |
 | 「编辑回答」按钮 | 回答页 `button` 含「编辑回答」 | 存在 = 回答已发布且可见 |
 | 按时间排序菜单 | 找 `b.innerText.trim() === '默认排序'` 按钮，再点「按时间排序」 | 新回答默认排序靠后，验证可见性需切此 |
 | 历史类话题 ID | `19551077`（机器学习是 `19559450`，别搞混） | 话题页入口 |
 | 精华区 URL | `/topic/19551077/top-answers` | 带连字符；`/top_answers` 是 404 |
-| 折叠验证 | **权威：官方 CLI**——优先用 `scripts/verify_via_cli.js`（v1.3.3，自动定位 zhihu-cli，输出 `VERIFY_RESULT: OK_NOT_COLLAPSED`）；手工等价 `zhihu-cli me contents --type answer --limit 3`（最新一条摘要完整 = 未折叠）；想法用 `--type pin` | **⚠️ 8/26 起 `serverFetch('/api/v4/answers/{aid}')` 持续 403 已失效**（verify_fold.js 已删除），页面摘要只显示末尾段会误判——浏览器侧一律不可信，以 CLI 为准 |
+| 折叠验证 | **权威（v1.3.7 修正）：创作者中心列表的「被折叠」标签**——用 `scripts/fold_audit.js` 巡检（滚动抓全量 + 与 `references/fold-baseline.json` 比对）；CLI `scripts/verify_via_cli.js`（输出 `VERIFY_RESULT: OK_NOT_COLLAPSED`）**仅作辅助** | ⚠️ **2026-09 新「隐藏机制」下 CLI Summary 失明**：被折叠回答的 Summary 仍非空，CLI 会把已折叠判成未折叠。`serverFetch('/api/v4/answers/{aid}')` 自 8/26 起恒 403（verify_fold.js 已删）。fold_audit 为唯一可靠信号 |
 
 ### 想法 / 动态（2026-08-31 实测）
 | 目标 | 选择器 / 判定 | 说明 |

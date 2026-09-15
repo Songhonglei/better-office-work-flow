@@ -233,6 +233,7 @@
 
   // ---------- 6. 写回答（answer=true 时） ----------
   let aid = null
+  let publishFailed = false
   if (shiftCfg.answer) {
     let content = P.content || ''
     if (P.contentFile) content = fs.readFileSync(P.contentFile, 'utf8')
@@ -276,12 +277,18 @@
       cliLog('risk-control wait 60s before publish...')
       await wait(60)
       const pub = await js('(() => {'
+        + ' const clean = function (s) { return (s || "").replace(/[\\u200b\\s]+/g, ""); };'
         + ' const btns = Array.from(document.querySelectorAll("button"));'
-        + ' const b = btns.find(function (x) { return x.innerText.trim() === "发布回答"; });'
-        + ' if (b) { b.click(); return true; }'
+        + ' const pre = ["发布回答", "提交回答"];'
+        + ' const b1 = btns.find(function (x) { return pre.indexOf(clean(x.innerText)) >= 0 && !x.disabled; });'
+        + ' if (b1) { b1.click(); return clean(b1.innerText); }'
+        + ' if (!document.querySelector(".public-DraftEditor-content")) return false;'
+        + ' const b2 = btns.find(function (x) { return clean(x.innerText) === "发布" && !x.disabled; });'
+        + ' if (b2) { b2.click(); return "发布"; }'
         + ' return false;'
         + '})()')
       cliLog('publish-clicked: ' + pub)
+      if (pub === false) publishFailed = true
       await wait(8)
       const info = await pageInfo()
       cliLog('after-publish-url: ' + info.url)
@@ -290,6 +297,7 @@
         aid = m[1]
         cliLog('PUBLISHED aid=' + aid)
       } else {
+        publishFailed = true
         cliLog('WARN: url did not jump to /answer/{aid} — possible publish stuck (see risk-control: do NOT retry)')
       }
       }
@@ -363,7 +371,10 @@
     }
   }
 
-  cliLog('SHIFT_DONE: ' + SHIFT + ' qid=' + qid + (aid ? ' aid=' + aid : ''))
+  if (publishFailed) {
+    cliLog('SHIFT_PARTIAL_FAIL: publish — 正文未发布（正文文件已保留，可修正后重跑；同页勿连续重试，等 1–2 小时）')
+  }
+  cliLog('SHIFT_DONE: ' + SHIFT + ' qid=' + qid + (aid ? ' aid=' + aid : ' aid=NONE'))
   await completeTaskSpace(space, { keep: false })
 })()
 
