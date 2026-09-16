@@ -32,7 +32,7 @@
 | **mode 取值** | `auto`（两者结合，默认）/ `invite`（只认邀请）/ `random`（只认自动） | 改 `config.deep_answer.mode` |
 
 **执行要点**：
-- 深度版同样受风控红线约束（单班 ≤ 1 回答、发布前 90s 模拟阅读 + 60s 等待）。
+- 深度版同样受红线约束（单班 ≤ 1 回答、发布前 90s 模拟阅读 + 60s 等待）。
 - 每周不超过 1 篇深度版即可——宁缺毋滥，硬凑的深度版反而拉低优质分。
 - 深度版发布后**必须 24h 内回评论**（`config.influence.comment_reply`），否则浪费了内容质量带来的互动窗口。
 
@@ -161,6 +161,15 @@ env 写法（其他机器若透传 env 可用）：`SHIFT=morning CONFIG=/abs/co
 > **v1.3.7 起：班次前置步骤 = 折叠巡检**（`scripts/fold_audit.js`）——每班开跑先与基线比对，抓 `NEW_FOLDED`（新被折叠）/`RECOVERED`；发现新增折叠要在日报记录并在写作时收紧去指纹化规范。**折叠权威信号 = 创作者中心「被折叠」标签**，CLI Summary 在新「隐藏机制」下失明（详见 selectors.md 折叠验证行）。
 >
 > **发布失败处置（v1.3.7）**：`run_shift.js` 现在会在发布未成功时输出 `SHIFT_PARTIAL_FAIL: publish`（此前只在日志里留 WARN 却照常报 `SHIFT_DONE`，无人值守会误判成功）。看到该行＝正文未发布，同问题页**最多重试 1 次**，再失败停 1–2 小时或换班次（同页 15 分钟内连续开编辑器会触发「写回答」不挂载编辑器的密度信号）。
+
+## 模式 C：禁言期只读浏览（v1.3.8，账号受限时唯一允许的动作）
+```bash
+# 可选参数：/tmp/zhihu_browse_params.json = {"minutes":6,"pages":4,"keywords":["历史","心理"]}
+ego-browser nodejs < scripts/browse_only.js
+```
+- 行为：热榜滚动 → 按垂直领域关键词挑问题 → 逐页滚动停留（40–90s/页）→ 首页信息流；**全程零点击互动**，日志 `BROWSE_DONE ... interactions=0` 可验证。
+- `run_shift.js` 在 `config.account_status.silenced=true` 时会直接退出（`SILENCED_MODE`），不会写任何内容；**不要**靠它兜底，禁言期就只跑本模式。
+- 频率：每天 1–2 次即可（维持真实活跃痕迹），无需三班。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：

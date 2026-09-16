@@ -61,6 +61,19 @@
   const cfg = loadConfig()
   if (!cfg) { cliLog('ERROR: no config.json found'); return }
   cliLog('CONFIG_LOADED: ' + cfg.path)
+  if (cfg.path.indexOf('/tmp/') === 0) {
+    cliLog('WARN: 正在使用 /tmp 影子配置（' + cfg.path + '）——它会覆盖正式 config，且可能缺少 account_status 禁言护栏。确认是刻意临时覆盖，否则删除该文件。')
+  }
+
+  // ---------- 0. 账号受限期护栏（fail-safe，优先于一切动作） ----------
+  const acct = cfg.data.account_status || {}
+  if (acct.silenced === true) {
+    cliLog('SILENCED_MODE: 账号处禁言期（' + (acct.silenced_from || '?') + ' → ' + (acct.silenced_until || '?') + '）：本脚本不做任何写操作，直接退出')
+    cliLog('SILENCED_HINT: 只读浏览请跑 scripts/browse_only.js；禁言解除后把 config.account_status.silenced 改为 false')
+    cliLog('SHIFT_SKIPPED: ' + (P.shift || '?') + ' (silenced) — no answer / no like / no collect / no follow / no comment')
+    cliLog('SHIFT_DONE: ' + (P.shift || '?') + ' qid=none aid=NONE (silenced)')
+    return
+  }
 
   const SHIFT = (P.shift || '').toLowerCase()
   if (!['morning', 'noon', 'evening'].includes(SHIFT)) {
@@ -157,7 +170,7 @@
   }
 
   // ---------- 5. 点赞：前 pool 个候选里随机选 min~max 个（自然化，避免每次固定点赞前 N 被风控） ----------
-  cliLog('simulating read 90s (risk control)...')
+  cliLog('simulating read 90s (human pace)...')
   await wait(90)
   const interactions = shiftCfg.interactions || {}
 
@@ -274,7 +287,7 @@
         + ' return true;'
         + '})(' + JSON.stringify(content) + ')')
       await wait(2)
-      cliLog('risk-control wait 60s before publish...')
+      cliLog('human-pace pause 60s before publish...')
       await wait(60)
       const pub = await js('(() => {'
         + ' const clean = function (s) { return (s || "").replace(/[\\u200b\\s]+/g, ""); };'
