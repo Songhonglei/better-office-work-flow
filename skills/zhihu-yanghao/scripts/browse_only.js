@@ -1,5 +1,5 @@
-// browse_only.js — 禁言期只读浏览（不点赞/不收藏/不关注/不评论/不发布）
-// 用途：账号被限流或禁言期间维持真实活跃度，只做「看」的动作。
+// browse_only.js — 账号受限期只读浏览（不点赞/不收藏/不关注/不评论/不发布）
+// 用途：账号限流 / 禁言期间维持真实活跃度，只做「看」的动作。
 // 用法：ego-browser nodejs < scripts/browse_only.js
 // 可选参数文件 /tmp/zhihu_browse_params.json：
 //   { "minutes": 6, "pages": 4, "keywords": ["历史","心理"] }
