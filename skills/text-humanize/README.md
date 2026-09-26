@@ -15,7 +15,7 @@
 clawhub install text-humanize
 
 # Or clone directly
-git clone https://github.com/Songhonglei/text-humanize.git
+git clone https://github.com/Songhonglei/better-office-work-flow.git
 ```
 
 ## Usage

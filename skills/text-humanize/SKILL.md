@@ -8,10 +8,10 @@ description: >
   Dev.to, 微信公众号, 知乎, 小红书, 即刻, 微博, 抖音, B站, or any public forum.
 ---
 
-- **Version**: 1.0.0
+- **Version**: 1.1.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
-- **Repository**: https://github.com/Songhonglei/text-humanize
+- **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/text-humanize
 
 # Text Humanize — 中英文去 AI 味检测 + 改写
 
@@ -51,6 +51,17 @@ Both modes work identically for English and Chinese; just the pattern catalog di
 2. Produce a rewritten version following language-specific rules (see below).
 3. Show the original and rewrite side-by-side with a brief summary of what changed.
 4. Ask the user which version to use (or if they want further tweaks).
+
+---
+
+## Chinese Mode: Run This First (标点层自检)
+
+Before auditing style, audit **punctuation**. In Chinese text, half-width quotes (`"`) and spaces around punctuation are the single most reliable machine fingerprint — more reliable than any style tell, and fixable mechanically without touching the writing:
+
+- Count `"` in the text. **Pure Chinese text should be 0.** Non-zero = machine typesetting residue.
+- Treat this as a separate tier: **标点/空格规范化** (mechanical, no meaning change) vs **内容改动** (needs the author's judgment). Report them separately so the author can skim the mechanical part and focus on the real edits.
+
+Full rule: SS-CN7 in `references/ai-smells-cn.md`.
 
 ---
 
@@ -99,7 +110,7 @@ Refer to `references/ai-smells-cn.md` for the complete Chinese pattern catalog. 
 | 开头 | O-CN1~O-CN3 | "这个问题很有启发性…"、"作为一个…"、"有道理但是…" |
 | 正文 | B-CN1~B-CN7 | 书面连接词过频、对称辩证、金句提炼、举例论证、"我们"滥用、中英混杂、功能罗列 |
 | 结尾 | C-CN1~C-CN3 | 升华式收尾、开放式互动、正能量用力过猛 |
-| 表面 | SS-CN1~SS-CN6 | 零错别字、句式工整、缺少语气词、句号强迫症、破折号"——"、翻译腔 |
+| 表面 | SS-CN1~SS-CN7 | 零错别字、句式工整、缺少语气词、句号强迫症、破折号"——"、翻译腔、**半角标点/标点空格（优先级最高）** |
 
 ### 中文改写黄金规则
 
