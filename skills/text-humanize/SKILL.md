@@ -1,21 +1,23 @@
 ---
 name: text-humanize
 description: >
-  Audit and de-AI text for social platforms — bilingual (English + 中文). Auto-detects language,
+  Audit and de-AI text — bilingual (English + 中文), across genres. Auto-detects language and genre,
   then detects AI-generated patterns: structural tells, opening/closing clichés, surface signals,
-  and platform-specific red flags. Rewrites text to sound like a real human wrote it. Use when
-  checking text for "AI smell" before posting to HN, Twitter/X, Reddit, Facebook, LinkedIn,
-  Dev.to, 微信公众号, 知乎, 小红书, 即刻, 微博, 抖音, B站, or any public forum.
+  rhetorical/lyrical tells (appositive stacking, clichéd imagery, filler adjectives), and
+  platform-specific red flags. Rewrites text to sound like a real human wrote it. Use when checking
+  text for "AI smell" before posting to HN, Twitter/X, Reddit, Facebook, LinkedIn, Dev.to,
+  微信公众号, 知乎, 小红书, 即刻, 微博, 抖音, B站, or any public forum — and for prose: 散文、美文、
+  文艺腔、抒情段落、现代诗短句、小说叙事段落、长篇稿件。亦用于 去AI味、去文艺腔、查AI痕迹、humanize。
 ---
 
-- **Version**: 1.1.0
+- **Version**: 1.2.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/text-humanize
 
 # Text Humanize — 中英文去 AI 味检测 + 改写
 
-Bilingual AI-smell auditor and humanizer. Auto-detects whether input is English or Chinese, then applies the right detection patterns and rewrite rules. Built from real flagged data on English platforms (HN, Reddit) and Chinese platforms (公众号, 知乎, 小红书).
+Bilingual AI-smell auditor and humanizer. Auto-detects whether input is English or Chinese **and which genre it belongs to**, then applies the right detection patterns and rewrite rules. Built from real flagged data on English platforms (HN, Reddit), Chinese platforms (公众号, 知乎, 小红书), and real prose revisions (散文、小说叙事段落).
 
 ## Language Auto-Detection
 
@@ -27,6 +29,24 @@ Before starting any audit, detect the input language:
 4. If the user explicitly says "用中文优化" or "用英文优化", override auto-detection.
 5. For mixed text (e.g., Chinese with English code blocks), detect based on the natural-language portions only, ignoring code.
 
+## Genre Gate — Run Before Choosing Rules
+
+语言决定**用哪本目录**；体裁决定**用目录里的哪几条规则**。同一门语言、相反的建议：评论区该删破折号，散文该留破折号。跳过这一步，就会输出互相打架的意见。
+
+| 档位 | 识别特征 | 适用信号 | 改写规则 |
+|---|---|---|---|
+| **短文本** Short-form | 评论、即刻/微博/朋友圈、知乎评论区、论坛回帖；几十到几百字 | 五类全查 | 全量：加语气词、留 1-2 个错字、压成 1-2 段、删破折号 |
+| **长文** Long-form | 公众号正文、知乎长答、博客、署名文章；1500 字以上 | 五类（SS-CN1/SS-CN5 的两条降级） | 降级：去模板骨架（01/02/03、首先其次最后、写在最后）；**不写错别字、不压段**；人味靠语气词 + 节奏错落 + 一次刻意重复或自我打断 |
+| **文学** Literary | 散文、小说叙事、美文、现代诗短句、随笔 | 五类 + **第六类 R-CN1~R-CN6** | 只做减法与还原：删堆砌、拆同位语、换私人化意象。**不注入错字、不注入语气词、不碰标点风格**；破折号保留，只做控量与规范化 |
+
+三条裁决规则：
+
+1. 拿不准就按**长文**处理（最保守）。
+2. 体裁与平台冲突时，**体裁优先**。例：公众号里的一段散文，按文学档走，不按长文档走。
+3. 用户明确说「按评论区风格改」时，用用户指令覆盖体裁判定。
+
+英文侧同理：HN / Reddit 评论 = 短文本，Dev.to 文章 = 长文，Substack / 个人随笔 = 文学。
+
 ## How It Works — Two Modes
 
 Both modes work identically for English and Chinese; just the pattern catalog differs.
@@ -34,27 +54,35 @@ Both modes work identically for English and Chinese; just the pattern catalog di
 ### Mode A: Audit Only (trigger: "check", "audit", "检查", "看看")
 
 1. Auto-detect language.
-2. Load the appropriate reference: `references/ai-smells-en.md` for English, `references/ai-smells-cn.md` for Chinese.
-3. Scan the text against all 5 smell categories (Structural, Opening, Body, Closing, Surface).
-4. Produce a concise audit report listing every detected smell with:
-   - The smell code (e.g., S1, O-CN1, B-CN3, SS-CN1)
+2. Auto-detect genre (see Genre Gate above).
+3. Load the appropriate reference: `references/ai-smells-en.md` for English, `references/ai-smells-cn.md` for Chinese. For the **文学** tier, also load `references/lyrical-appositive.md`.
+4. Run the mechanical checks the tier calls for **first** — 标点层 for all Chinese text, R 类结构计数 for 抒情/文学 — and report the raw numbers up front.
+5. Scan the text against the smell categories applicable to that tier: the 5 categories, plus R-CN1~R-CN6 for the 文学 tier.
+6. Produce a concise audit report listing every detected smell with:
+   - The smell code (e.g., S1, O-CN1, B-CN3, SS-CN1, R-CN3)
    - The specific phrase/pattern triggering it
    - A 1-line fix suggestion (in the text's language)
-5. Give an overall "AI smell score":
-   - **🟢 Green (1-2 smells):** Looks human. Minor suggestions only.
-   - **🟡 Yellow (3-5 smells):** Some AI patterns. Consider fixes.
-   - **🔴 Red (6+ smells):** High risk of flagging. Strongly recommend rewriting.
+7. Give an overall verdict:
+   - **短文本 / 长文 — 用 smell 计数：**
+     - **🟢 Green (1-2 smells):** Looks human. Minor suggestions only.
+     - **🟡 Yellow (3-5 smells):** Some AI patterns. Consider fixes.
+     - **🔴 Red (6+ smells):** High risk of flagging. Strongly recommend rewriting.
+   - **文学 — 用条件式，不看总数：** 命中「文学体裁快速筛查」5 条中的**任意 3 条**即 🔴。这类文本单点致命，计数式会漏判。
 
 ### Mode B: Audit + Rewrite (trigger: "humanize", "rewrite", "fix", "优化", "改一下", "去AI味")
 
 1. Run the full audit (Mode A).
-2. Produce a rewritten version following language-specific rules (see below).
-3. Show the original and rewrite side-by-side with a brief summary of what changed.
+2. Produce a rewritten version using **only the rewrite rules for the detected tier** (see Genre Gate). 短文本才注入语气词与错别字；长文、文学档一律不注入。
+3. Show the original and rewrite side-by-side with a brief summary of what changed, marking each change as 标点/空格规范化（机械） or 内容改动（需作者判断）。
 4. Ask the user which version to use (or if they want further tweaks).
 
 ---
 
-## Chinese Mode: Run This First (标点层自检)
+## Chinese Mode: Run These Two Mechanical Checks First
+
+在评价文风之前，先跑两项**纯统计**。数字比感觉可靠，也让审计可复现、改完可复测。
+
+### 检查一 · 标点层（所有体裁）
 
 Before auditing style, audit **punctuation**. In Chinese text, half-width quotes (`"`) and spaces around punctuation are the single most reliable machine fingerprint — more reliable than any style tell, and fixable mechanically without touching the writing:
 
@@ -62,6 +90,18 @@ Before auditing style, audit **punctuation**. In Chinese text, half-width quotes
 - Treat this as a separate tier: **标点/空格规范化** (mechanical, no meaning change) vs **内容改动** (needs the author's judgment). Report them separately so the author can skim the mechanical part and focus on the real edits.
 
 Full rule: SS-CN7 in `references/ai-smells-cn.md`.
+
+### 检查二 · 抒情同位语结构（仅抒情 / 文学档）
+
+当体裁闸门判定为**文学**档，或文本读起来是抒情散文 / 美文 / 现代诗短句时，加跑这一项。三项都只报**原始数字**，不下结论：
+
+- `X，Y 的 Z` 形态的出现次数；**最长连续句数**；**单段峰值**
+- 陈腐喻体词库命中数（信使 / 信笺 / 叹息 / 诗篇 / 守望者 / 耳语 / 序章 / 独白 / 回响）
+- 万能抒情形容词库命中数（温柔 / 沉默 / 浪漫 / 治愈 / 漫长 / 细碎）
+
+报告样例：`同位语 14 处 / 最长连续 4 句 / 单段峰值 3 / 词库命中 9（温柔×3、信使×2）`
+
+完整规则与词库：R-CN1~R-CN6 in `references/ai-smells-cn.md`；正反对照例句库：`references/lyrical-appositive.md`。
 
 ---
 
@@ -106,22 +146,28 @@ Refer to `references/ai-smells-cn.md` for the complete Chinese pattern catalog. 
 
 | 类别 | 代码 | 关键信号 |
 |------|------|----------|
-| 结构 | S-CN1~S-CN4 | 议论文三段式、"首先其次最后"、编号列表、引用原文再回复 |
-| 开头 | O-CN1~O-CN3 | "这个问题很有启发性…"、"作为一个…"、"有道理但是…" |
-| 正文 | B-CN1~B-CN7 | 书面连接词过频、对称辩证、金句提炼、举例论证、"我们"滥用、中英混杂、功能罗列 |
+| 结构 | S-CN1~S-CN4 | 议论文三段式、「首先其次最后」、编号列表、引用原文再回复 |
+| 开头 | O-CN1~O-CN3 | 「这个问题很有启发性…」、「作为一个…」、「有道理但是…」 |
+| 正文 | B-CN1~B-CN7 | 书面连接词过频、对称辩证、金句提炼、举例论证、「我们」滥用、中英混杂、功能罗列 |
 | 结尾 | C-CN1~C-CN3 | 升华式收尾、开放式互动、正能量用力过猛 |
-| 表面 | SS-CN1~SS-CN7 | 零错别字、句式工整、缺少语气词、句号强迫症、破折号"——"、翻译腔、**半角标点/标点空格（优先级最高）** |
+| 表面 | SS-CN1~SS-CN7 | 零错别字、句式工整、缺少语气词、句号强迫症、破折号泛滥（仅短文本）、翻译腔、**半角标点/标点空格（优先级最高）** |
+| 修辞 · 抒情 | R-CN1~R-CN6 | 同位语过密、句式僵化无变体、陈腐喻体词库、万能形容词冗余、意象不统一、抒情无落点（**仅抒情/文学档，且改用条件式判定**） |
+
+> **体裁差异集中在三条：** R 类只在**文学档**生效；SS-CN5（破折号）只在**短文本**生效；SS-CN1（零错别字）在**长文与文学档不注入**。入口见上方 Genre Gate。
 
 ### 中文改写黄金规则
 
-1. **结构打碎。** 不要开头-中间-结尾。1-2 段，直接亮态度。
-2. **加语气词。** 至少 1-2 个：吧、嘛、呢、啊、就、还挺、讲真、说实话。
-3. **加 1-2 个「错」。** 的/地/得混用，或在/再混用。不要太刻意，2 个就够了。
+> **档位说明：** 下列规则默认面向**短文本**档。**长文**档见 `references/ai-smells-cn.md` 末尾的降级说明；**文学**档只取第 5、6、7 条，外加第 9 条。体裁判定见上方 Genre Gate。
+
+1. **结构打碎。** 不要开头-中间-结尾。1-2 段，直接亮态度。*（短文本；长文改为去模板骨架）*
+2. **加语气词。** 至少 1-2 个：吧、嘛、呢、啊、就、还挺、讲真、说实话。*（短文本、长文可用；文学档不注入）*
+3. **加 1-2 个「错」。** 的/地/得混用，或在/再混用。不要太刻意，2 个就够了。*（仅短文本；长文与文学档一律不写错别字）*
 4. **短句为主，偶尔混长句。** 节奏参差不齐才像人。
-5. **有态度。** 敢说"我觉得不对"、"试过就知道坑"。不要和稀泥。
-6. **结尾不升华。** 用不确定感收尾或戛然而止。不要"值得深思"。
+5. **有态度。** 敢说「我觉得不对」「试过就知道坑」。不要和稀泥。
+6. **结尾不升华。** 用不确定感收尾或戛然而止。不要「值得深思」。
 7. **个人经验 > 通用道理。** 讲自己踩过的坑，不讲放之四海而皆准的道理。
-8. **宁可碎一点。** 半句话、反问句、语气词结尾都行，不要追求「完整」。
+8. **宁可碎一点。** 半句话、反问句、语气词结尾都行，不要追求「完整」。*（短文本）*
+9. **文学档只做减法。** 删堆砌、拆同位语、把公共意象换成私人意象；**不要用新喻体替换旧喻体**，也不要为了「人味」加错字或语气词。例句库见 `references/lyrical-appositive.md`。
 
 ### 中文平台特定规则
 
@@ -142,9 +188,11 @@ Refer to `references/ai-smells-cn.md` for the complete Chinese pattern catalog. 
 
 ## Edge Cases
 
-- **Very short text (under 20 words / 30 字):** Almost certainly human. Only check surface smells. Don't over-audit.
+- **Very short text (under 20 words / 30 字):** Almost certainly human. Only check surface smells. Don't over-audit. **例外：抒情 / 唯美短句** —— 九个字的 `黄昏，大地温柔的信使` 正是第六类要抓的形态。**短 ≠ 人味**，这类文本不看长度，照跑 R 类检查。
+- **文学 / 散文 / 诗体输入:** Route through the Genre Gate to the **文学** tier. Suppress typo and 语气词 injection entirely; work by subtraction — delete stacking, break appositives, swap public imagery for private. 例句库见 `references/lyrical-appositive.md`。
 - **Technical code-heavy text:** Code blocks are exempt. Only audit the natural language portions.
 - **User wants formal tone:** Skip typo/错别字 injection. Still de-structure and remove academic openers.
 - **Text already has human markers:** If 3+ human fingerprints already present, focus on structural smells only. Don't over-humanize.
 - **Mixed EN/CN content:** Audit each language block separately against its own catalog. If truly bilingual, note it and ask the user which language to prioritize.
 - **Quoted text / retweets:** Only audit the user's own added text. Quoted/retweeted content is exempt.
+- **中英混排的空格例外:** SS-CN7 只针对**标点周边**的半角标点与空格；中英文之间、中文与数字之间的一个空格是排版惯例（`用 CDP 上传`、`第 3 步`），不要清掉。
