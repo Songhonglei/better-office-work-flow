@@ -3,6 +3,21 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.2.1 (2026-09-26)
+
+**修复：UGLIC 复查 8 项（1 ERR / 7 WARN）**，全部为文档层修复，判定口径不变：
+
+- **I1（ERR）英文侧补 Genre Adjustments**（`references/ai-smells-en.md` 末尾新增）：三档各自停用哪些检测信号与改写 fix——长文停 SS1-SS3 注入类（不加错字、不换 `--`、filler 从简）；文学档全注入停用，只做减法。英文 R 类词库暂未建，抒情英文靠 B3/B4/C1/SS4 + 判断。SKILL.md 英文侧同步加档位说明，Rewriting Principle 3 加「仅短文本档」限定 —— 消除「英文散文被塞 typo」的指令冲突。
+- **U1 体裁判定二义消除**：裁决规则 1 加「唯一例外」——文本呈现抒情特征（意象堆叠、`X，Y 的 Z` 高频）即判文学档，特征本身是判据、不属「拿不准」；检查二的触发条件同步收口到同一口径。
+- **L1 Genre Gate 表格信号列修正**：长文行明确 SS-CN1/SS-CN5 两条信号不适用；文学行排除 SS-CN5，与同行改写列「破折号保留」不再自相矛盾。
+- **L2 文学档判定补全**：条件式判定补齐三档——0 条 🟢 / 1-2 条 🟡（逐条用机械自检与三问判定复核）/ 任意 3 条 🔴。
+- **C2 R 类拆分为独立文件 `references/ai-smells-r-cn.md`**：加载条件按**特征触发**（文学档，或任何呈现抒情特征的文本——含短文本里的抒情短句，保住 Edge Cases 的抒情短句边路）；短文本常规审计不再被迫读 ~97 行 R 类。`ai-smells-cn.md` 原位置留指针。
+- **I2 互引路径基准修正**：references/ 目录内互引改为同目录裸文件名，不再产生 `references/references/` 歧义。
+- **G1 中文语境半角引号清零**：250 处成对 `"` → 「」（SKILL.md 32 处、ai-smells-cn.md 218 处），脚本跳过代码段、转换后复核归零 —— 本 skill 自己的一号信号不再踩在自己身上。
+- **C1 边界声明**：Edge Cases 新增与平台侧合规检查（创作度 / 原创增量 / 同质化 / 搬运拼凑 / 低价值 AIGC 判定）的分工说明，本 skill 只管文本层 AI 特征。
+
+已知未修（INFO 级，有意保留）：U2（Mode A 步骤 4 前向引用未点名章节）、G2（README/CHANGELOG 留在 skill 目录系发布惯例）、C3（默认档位行为变更已在 v1.2.0 生效并记录）。
+
 ### v1.2.0 (2026-09-26)
 
 **新增：文学 / 抒情体裁支持 + 体裁闸门**

@@ -159,3 +159,17 @@
 ### Dev.to / Medium comments
 - Similar to HN but slightly more tolerant of longer form.
 - Still avoid structured essays. Be conversational.
+
+---
+
+## Genre Adjustments
+
+The catalog above is calibrated for **short-form** text (comments on HN / Reddit / social platforms). Other tiers (see Genre Gate in SKILL.md) suspend parts of it:
+
+| Tier | Examples | Detection signals suspended | Rewrite fixes suspended |
+|------|----------|------------------------------|--------------------------|
+| **Short-form** | HN / Reddit / social comments | none | none — full catalog applies |
+| **Long-form** | Dev.to / blog articles, Substack posts | SS1 (published prose is expected to be typo-free) | SS1 fix (no deliberate typos), SS2 fix (em-dashes are fine in articles), SS3 filler injection — keep it light if at all |
+| **Literary** | personal essays, prose, voice-driven newsletters | SS1, SS2 | **all injection fixes** — work by subtraction only: cut B3 formulas, break B4 example cascades, vary rhythm (SS4), kill polished closers (C1). Inject nothing. |
+
+> Note: the Chinese catalog has a dedicated R-class (rhetoric / lyrical) signal set for lyrical prose (`ai-smells-r-cn.md`, loaded on demand). An English equivalent word list is not built yet; for English lyrical prose, detect via B3 / B4 / C1 / SS4 plus judgment, and rewrite by subtraction only.
