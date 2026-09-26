@@ -3,6 +3,32 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.3.0 (2026-09-27)
+
+**新增：改写后的验证闭环（postflight）+ 自检脚本**
+
+- **Mode B 新增第 5 步「Re-run the mechanical checks on the rewrite」** —— 此前检查层只前置、不闭环，
+  改造后要求对**改写稿**重跑标点层（文学/抒情档加跑 R 类），**把复测数字写进回复**，FAIL 项不归零不得交付。
+  起因：v1.2.1 流程下《长城》稿改写后残留 12 处半角引号，漏到交付环节——
+  SS-CN7 是本 skill 自标「优先级最高」的一条，却踩在了自己的流程上。
+- **新增 `scripts/preflight-check.py`** —— 一条命令输出标点层 / 排版 / 人称 / R 类全部统计项。
+  结果**分 FAIL / WARN / INFO 三级**：机械残留判 FAIL 并决定退出码，文风项（超长段、同位语密度、词库命中）
+  只判 WARN——避免脚本逼作者把散文剁碎。此前全流程靠人肉数，2000 字以上长文必然漏。
+  支持 `--tier short|long|literary` 档位感知、`--lyrical`、`--para-max`、`--strict`、`--cut`、`--json`。
+- **脚本新增语言护栏 `--lang auto|zh|en`** —— 标点层规则是中文专属的（半角引号、`...`、`--` 在英文里
+  本来就是正确写法）。auto 模式先按 SKILL.md 的 Language Auto-Detection 口径算 CJK 占比，
+  不足 50% 就把标点层降级为 INFO、不参与退出码并打出警告，避免有人拿它审英文稿得到一堆假 FAIL。
+  需要覆盖时显式传 `--lang zh`。
+- **「检查一 · 标点层」标题改为「跑两次」** —— 明确「审计前定基线 + 改写后做验收」两次调用，
+  并注明长文必须用脚本、不可目测。
+- **SS-CN7 补「改完必须复测」** —— 附实测数据（20 处 → 残留 12 处），说明「顺手换」只换掉一部分，
+  残留量与原文同量级。
+- **Mode B 第 3 步补交付形态建议** —— 长文（公众号正文、署名文章）直接产出定稿文件 +
+  分隔线后的「本轮改动」清单，不要在对话里贴 2000 字。
+- **Edge Cases 补「事实层」分工说明** —— 本 skill 不管事实核查，但改写时要顺手做两件事：
+  不改动事实本身（数字 / 人名 / 时间 / 引语照写，存疑处标注给作者）；作者无法自证出处的细节
+  **不删、不替换**，加「据说」或交代来源。两个高频动作：日期模糊化、无出处数字加「据说」。
+
 ### v1.2.1 (2026-09-26)
 
 **修复：UGLIC 复查 8 项（1 ERR / 7 WARN）**，全部为文档层修复，判定口径不变：

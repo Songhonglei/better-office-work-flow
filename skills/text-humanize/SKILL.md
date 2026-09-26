@@ -10,7 +10,7 @@ description: >
   文艺腔、抒情段落、现代诗短句、小说叙事段落、长篇稿件。亦用于 去AI味、去文艺腔、查AI痕迹、humanize。
 ---
 
-- **Version**: 1.2.1
+- **Version**: 1.3.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/text-humanize
@@ -73,16 +73,24 @@ Both modes work identically for English and Chinese; just the pattern catalog di
 
 1. Run the full audit (Mode A).
 2. Produce a rewritten version using **only the rewrite rules for the detected tier** (see Genre Gate). 短文本才注入语气词与错别字；长文、文学档一律不注入。
-3. Show the original and rewrite side-by-side with a brief summary of what changed, marking each change as 标点/空格规范化（机械） or 内容改动（需作者判断）。
+3. Show the original and rewrite side-by-side with a brief summary of what changed, marking each change as 标点/空格规范化（机械） or 内容改动（需作者判断）. **长文（公众号正文、署名文章）建议直接产出定稿文件**（标题 + 正文 + 分隔线后的「本轮改动」清单），不要把 2000 字贴在对话里 —— 用户发布时复制正文即可。
 4. Ask the user which version to use (or if they want further tweaks).
+5. **Re-run the mechanical checks on the rewrite（强制，不可跳过，不得口头声称「已检查」）.**
+   - 对**改写稿**重跑检查一（标点层），文学 / 抒情档再跑检查二（R 类）。
+     有 `scripts/preflight-check.py` 就直接跑，没有就逐项计数。
+   - **把复测数字写进回复**，例如：`复测：半角引号 0 / 破折号 0 / 编号小标题 0`。
+   - 任一 FAIL 项不归零 → 回到 step 2 修，**修到归零才交付**。
+   - **重点点名 SS-CN7：改写稿的半角引号计数必须为 0。** 这条最容易漏 —— 「顺手换」通常只换掉一部分，
+     残留量与原文同量级，肉眼不可辨。**原文有多少处，改写后就按多少处去数，不要凭印象。**
+   - 用户只要「只审计不改写」时，step 5 换成：把复测命令给用户，让他自己跑。
 
 ---
 
 ## Chinese Mode: Run These Two Mechanical Checks First
 
-在评价文风之前，先跑两项**纯统计**。数字比感觉可靠，也让审计可复现、改完可复测。
+在评价文风之前，先跑两项**纯统计**。数字比感觉可靠，也让审计可复现、改完可复测。**（「改完可复测」这半句是本流程的强制项，见 Mode B 第 5 步）**
 
-### 检查一 · 标点层（所有体裁）
+### 检查一 · 标点层（所有体裁，跑两次）
 
 Before auditing style, audit **punctuation**. In Chinese text, half-width quotes (`"`) and spaces around punctuation are the single most reliable machine fingerprint — more reliable than any style tell, and fixable mechanically without touching the writing:
 
@@ -90,6 +98,13 @@ Before auditing style, audit **punctuation**. In Chinese text, half-width quotes
 - Treat this as a separate tier: **标点/空格规范化** (mechanical, no meaning change) vs **内容改动** (needs the author's judgment). Report them separately so the author can skim the mechanical part and focus on the real edits.
 
 Full rule: SS-CN7 in `references/ai-smells-cn.md`.
+
+- **跑两次，不是一次。** 审计前跑一遍（定基线、报原始数字），**改写后必须再跑一遍（验收）**。
+  第二次 `"` 计数不为 0，就是没改完——不管改写时你觉得自己换得多干净。
+- **长文请用脚本数，不要用眼睛数。** 2000 字以上的稿子，半角引号、破折号、超长段落靠肉眼必然漏。
+  用 `scripts/preflight-check.py draft.md`，一条命令出全部数字。
+  该脚本**只覆盖中文文本**（CJK 占比 ≥ 50%）：拿英文稿跑，半角引号、`...`、`--` 这些在英文里本来就正确的写法
+  不会被误判成硬伤，标点层自动降级为只报数字。确需强制按中文判定时传 `--lang zh`。
 
 ### 检查二 · 抒情同位语结构（仅抒情 / 文学档）
 
@@ -199,3 +214,4 @@ Refer to `references/ai-smells-cn.md` for the complete Chinese pattern catalog. 
 - **Quoted text / retweets:** Only audit the user's own added text. Quoted/retweeted content is exempt.
 - **中英混排的空格例外:** SS-CN7 只针对**标点周边**的半角标点与空格；中英文之间、中文与数字之间的一个空格是排版惯例（`用 CDP 上传`、`第 3 步`），不要清掉。
 - **边界 — 平台侧检查不在本 skill 范围：** 创作度、原创增量、同质化、搬运拼凑、低价值 AIGC 判定等**平台合规类检查**请用对应的平台检查工具；本 skill 只管**文本层**的 AI 特征（句法、标点、套路、意象）检测与去 AI 味改写。
+- **事实层不由本 skill 处理，但改写时要顺手做两件事：** ① **不改动事实本身**（数字、人名、时间、引语一律照写），存疑处标注出来交给作者；② 遇到**作者无法自证出处**的细节，**不要删、也不要用别的说法替换**，而是加「据说」或交代来源（「记不清是在哪篇报道里……」），把判断权留给作者。两个高频动作：**日期模糊化**（精确到日的改成「月 / 季节」级，但关键锚点年份保留）、**无出处的数字加「据说」**。
