@@ -3,6 +3,15 @@
 All notable changes to this skill are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+### v1.7.1 (2026-10-09)
+
+- **Fix (root cause)**: `scripts/publish_note.sh` 修复「登录态过期被误判为已登录」导致报错信息误导的根因。
+  - 旧判定 `text.includes('登录') && !text.includes('发布')` 在登录态过期时必然误判：小红书登录页导航里同样含「发布」「上传图文」等字样，脚本却认为已登录，继续往下走到`uploadFile()` 才抛 `ElementResolutionError: input[type="file"][accept*=".png"] not found`，真实原因（401）被完全掩盖，排查绕远路。
+  - 改为**双重判据**：① `location.href` 不含 `/login`（登录态过期会 302 到 `/login?source=&redirectReason=401&lastUrl=…`）；② 侧栏存在「笔记管理」或「草稿箱」入口。
+  - 失败日志同时输出 `reason`（`redirected_to_login` / `no_manage_entry`）与当前 URL，并提示手动登录路径。
+- **Docs**: SKILL.md「注意事项」新增第 13 条——登录检测必须用 URL 判定（含正确判定代码块），第 14 条——用户手动登录会触发「用户接管 task space」硬停止，须等用户回复 continue 后用 `takeOverTaskSpace(spaceId)` 接管，不可自行重试或夺回。
+- **验证**：`bash -n` + 提取 nodejs 段 `node --check` 通过；已登录真实页面回归测试新判定为 `true`，与旧判定一致无回归。
+
 ### v1.7.0 (2026-08-18)
 
 - **Feature**: 新增 **stage 模式**（`MODE=stage`）。用户要求「准备好页面我自己发布 / 不要暂存离开 / 留在页面就行」时走此模式。

@@ -106,15 +106,30 @@ cliLog('waiting for SPA to render...')
 await wait(15)
 
 // 验证登录状态
+// ⚠️ 坑点（2026-10-09 实测）：不能只扫页面文字。
+// 小红书登录页导航里也含「发布」等字样，纯文字判断会把 401 误判成已登录，
+// 后续 uploadFile 找不到 file input 才报错，掩盖真实原因。
+// 正确做法：以 URL 判定（登录页会 302 到 /login?redirectReason=401），
+// 再用「笔记管理」侧栏入口做二次确认。
 const loginCheck = await js(`(() => {
+  const href = location.href || ''
+  if (href.includes('/login')) {
+    return { loggedIn: false, reason: 'redirected_to_login', url: href }
+  }
   const text = document.body ? document.body.innerText : ''
-  if (text.includes('登录') && !text.includes('发布')) return { loggedIn: false }
-  return { loggedIn: true }
+  const hasManageEntry = text.includes('笔记管理') || text.includes('草稿箱')
+  if (!hasManageEntry) {
+    return { loggedIn: false, reason: 'no_manage_entry', url: href }
+  }
+  return { loggedIn: true, url: href }
 })()`)
 cliLog('Login status: ' + JSON.stringify(loginCheck))
 
 if (!loginCheck.loggedIn) {
-  cliLog('ERROR: 未登录小红书，请先在 ego-lite 中登录')
+  cliLog('ERROR: 未登录小红书（原因: ' + loginCheck.reason + '）')
+  cliLog('当前 URL: ' + loginCheck.url)
+  cliLog('请在 ego-lite 浏览器窗口手动登录 creator.xiaohongshu.com 后重试')
+  cliLog('提示: 手动登录会触发「用户接管 task space」，需回复 continue 后由 Agent 重新 takeOverTaskSpace 接管')
   await completeTaskSpace(task.id, { keep: false })
   process.exit(1)
 }
