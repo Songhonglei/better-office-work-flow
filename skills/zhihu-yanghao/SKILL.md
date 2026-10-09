@@ -182,6 +182,7 @@ DOM 选择器、按钮点击要点见 references/selectors.md。
 - ⚠️ **单问题重复操作密度**（2026-09-15 实测教训）：同一问题页 15 分钟内连续开编辑器 / 补发 3 次后，点「写回答」**不再挂载编辑器**（`.public-DraftEditor-content` 数=0，且非登录态问题——消息/私信仍在），属密度风控信号。规则：同页发布失败最多重试 1 次；再失败即停，等 1–2 小时或换班次重试；禁止在同一问题上连环试。
 - ⚠️ **知乎「隐藏机制」批量折叠（2026-09 发现）**：平台按时间窗分批折叠历史回答（实测 87 篇中 51 篇被折，宽松期 / 收紧期交替 = 分批处理特征）。CLI Summary 验证对新机制**失明**（被折叠回答 Summary 仍非空），折叠的唯一权威信号是创作者中心列表的「被折叠」标签 → **每班开跑先跑 `scripts/fold_audit.js` 与基线比对**。另注意：新回答未被折 ≠ 安全，可能只是审核批次还没推进到，不能当作写作规范没问题的证据。
 - ⚠️ **ego-browser nodejs 驻留进程 env 粘滞**（2026-09-12 实测）：`process.env` 跨调用残留——上次 heredoc 里设过的 `SHIFT`/`QID`/`CONTENT_FILE` 在后续所有调用中依然存活。`run_shift.js` 的 loadParams 只在 `p.shift` 为空时才读参数文件，因此 deep 等仅存在于 `/tmp/zhihu_shift_params.json` 的字段会被静默丢弃（症状：深度版正文被按标准区间 250-800 拦下报 `WORD_COUNT_EXCEEDED (standard)`，且日志里没有 `PARAMS_FROM_FILE`）。修复：启动器里 `delete process.env.SHIFT/QID/CONTENT_FILE/CONTENT` 再设新值；判别特征＝输出缺 `PARAMS_FROM_FILE` 这一行。
+- ⚠️ **同一条 shell 命令串跑两个 ego-browser 脚本 → 第二个静默空跑**（2026-09-23 实测）：`A.js ; B.js` 串在一条命令里时，第二个调用可能什么都不执行——零日志、无错误、退出码 0（`cliLog` 无输出，连 `BROWSE_START`/`SILENCED_MODE` 这类首行标记都没有）。规则：**一个脚本一条命令**；任何脚本若缺少首行标记日志，一律判为"没跑"并单独重跑，不要凭退出码认为成功。
 - 🚫 **生成回答禁止输出 Markdown**（9/1）：编辑器不渲染，`**` / `- ` 按字面残留。纯文本排版用「1.」「· 」、破折号强调。
 - 🚫 **永远不要对中文用 `String.raw`**（8/4 乱码事故）：`fillInput` 直接传 UTF-8 字符串。
 - ✅ **点赞按钮（8/11 实测修正）**：旧 `button.VoteButton:not(.VoteButton--down)` / `button.VoteButton--up` 在新版知乎**已失效**；改用 `button[aria-label*="赞同"]`，aria-label 形如 `"已赞同 1020 "` / `"赞同 307"`（**含尾空格必须 trim**），已赞判定用 `classList.contains('is-active')`（class 含 `VoteButton is-active`）。

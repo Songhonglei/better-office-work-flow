@@ -482,6 +482,8 @@ done
 
 11. **重复发布会累积「暂无笔记标题」废草稿**：小红书创作平台在每次进入图文编辑页并发生导航/重渲染时，会自动存若干标题为「暂无笔记标题」的空草稿。用 `draft` 模式重跑多篇后，草稿箱会堆积大量废草稿。清理方法：进「草稿箱」→ 切「图文笔记」tab → 对每个废草稿点 `.draft-actions` 里**最后一个 `.btn`**（编辑/删除中的删除）→ 确认弹窗。⚠️ 确认弹窗的删除按钮是真实 `<button class="...model-footer-confirm-btn draft-delete-popconfirm-btn-footer-confirm">删除</button>`，**必须点这个 `<button>`**；点 footer 容器 `<div class="modal-footer-buttons">`（文本也是「取消\n删除」）是空操作，不会删。弹窗文案含「草稿删除后不可找回」。
 
+12. **发布后的事后验证（2026-09-09 踩坑）**：发布脚本结束时 `completeTaskSpace({ keep: false })` 会销毁 space 连同小红书登录态 cookie。**之后新建的 task space 不继承登录态**（打开 creator.xiaohongshu.com / www.xiaohongshu.com 都会跳登录墙，公开搜索页未登录也全被拦截）。因此**事后独立远程验证不可行**——如需登录态验证（如查「已发布」列表），必须在发布脚本同一 space 内、`completeTaskSpace` 之前完成。发布成功本身以业务级证据为准：图片 CDN 落盘（`cdnImages`≥N、`editCount`=N）+ 话题全部 `clicked:true` + URL 跳转含 `published=true`（发布端点真实处理后的跳转，非 HTTP 200 假成功）。最终视觉确认建议用户在 App 内查看。
+
 ## Resources
 
 ### scripts/

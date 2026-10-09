@@ -170,6 +170,7 @@ ego-browser nodejs < scripts/browse_only.js
 - 行为：热榜滚动 → 按垂直领域关键词挑问题 → 逐页滚动停留（40–90s/页）→ 首页信息流；**全程零点击互动**，日志 `BROWSE_DONE ... interactions=0` 可验证。
 - `run_shift.js` 在 `config.account_status.silenced=true` 时会直接退出（`SILENCED_MODE`），不会写任何内容；**不要**靠它兜底，禁言期就只跑本模式。
 - 频率：每天 1–2 次即可（维持真实活跃痕迹），无需三班。
+- ⚠️ **每个 ego-browser 脚本必须单独一条命令跑**（2026-09-23 实测）：把 `fold_audit.js` 和 `browse_only.js` 用 `;` 串在同一条 shell 命令里时，**第二个调用会静默空跑**——连 `BROWSE_START` 都不输出、也不报 `BROWSE_ERROR`，退出码照旧为 0。判别法：**日志里没有 `BROWSE_START` / `BROWSE_DONE` 就等于这次没跑**，必须重新单独执行（只读脚本空跑无副作用，但会被误记成"今天浏览过了"）。
 
 ## 模式 A：每日养号完整一轮（旧版单脚本，仍可用）
 1. 闲逛热榜找选题：
