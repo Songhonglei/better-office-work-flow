@@ -39,6 +39,21 @@ FENCE = BQ + BQ + BQ
 CLICHE_METAPHOR = ["信使", "信笺", "叹息", "诗篇", "守望者", "耳语", "序章", "独白", "回响"]
 FILLER_ADJ = ["温柔", "沉默", "浪漫", "治愈", "漫长", "细碎"]
 
+# 「编号式小标题」：四种形态
+#   1、/ 1. / 1) / 1）   —— 阿拉伯数字 + 分隔符
+#   一、/ 二.            —— 汉字数字 + 分隔符
+#   一 / 二（独占一行）    —— 裸汉字编号（v1.3.1 补，此前漏判）
+#   01 xxx               —— 两位零前缀
+HEADING_NUM_RE = re.compile(
+    r"^[ \t]{0,6}(?:"
+    r"[0-9]{1,2}[、.．)）]"
+    r"|[一二三四五六七八九十]{1,3}[、.．]"
+    r"|[一二三四五六七八九十]{1,3}[ \t\r]*$"
+    r"|0[0-9][ \t]"
+    r")",
+    re.M,
+)
+
 FAIL, WARN, INFO = "FAIL", "WARN", "INFO"
 
 
@@ -77,11 +92,29 @@ def body_paragraphs(text):
     return out
 
 
+def strip_md_markers(text):
+    """剥掉行首的 Markdown 标题标记与引用标记，供「行锚定」的检查使用。
+
+    `## ` / `> ` 这些标记自带的空格不是「标点周边空格」，标题里的编号也不是正文编号。
+    不剥掉会同时产生两种错（v1.3.1 修）：
+
+      漏判 —— `## 01 xxx` 数不到（`^\\s{0,6}` 匹配不上 `## `），基线假报「0 / OK」；
+      误判 —— `## “引言式标题”` 被判「标点周边空格」、`> ——来源` 被判「破折号前后带空格」。
+    """
+    text = re.sub(r"^[ \t]{0,3}#{1,6}[ \t]+", "", text, flags=re.M)
+    text = re.sub(r"^[ \t]{0,3}>[ \t]?", "", text, flags=re.M)
+    return text
+
+
 def collect(text, tier, para_max, lyrical):
     rows = []
 
     def add(level, scope, name, value, limit=None):
         rows.append({"level": level, "scope": scope, "name": name, "value": value, "limit": limit})
+
+    # 行锚定的三项检查在「剥掉 Markdown 标记」的副本上跑，避免把 `## ` / `> ` 自带的空格
+    # 当成标点违规、把标题里的编号当成正文编号。见 strip_md_markers()。
+    text_nomark = strip_md_markers(text)
 
     # ---------- 标点层：FAIL ----------
     add(FAIL, "标点层", '半角双引号 "', text.count('"'), 0)
@@ -91,9 +124,9 @@ def collect(text, tier, para_max, lyrical):
     # 注意左右负向断言：否则 markdown 的 --- 分隔线会被当成 -- 误报
     add(FAIL, "标点层", "非规范破折号 -- / 单 —",
         len(re.findall(r"(?<!-)--(?!-)", text)) + len(re.findall(r"(?<!—)—(?!—)", text)), 0)
-    add(FAIL, "标点层", "破折号前后带空格", len(re.findall(r"[ \t]——|——[ \t]", text)), 0)
+    add(FAIL, "标点层", "破折号前后带空格", len(re.findall(r"[ \t]——|——[ \t]", text_nomark)), 0)
     add(FAIL, "标点层", "标点周边空格",
-        len(re.findall(r"[，。！？；：、）】”’][ \t]|[ \t][（【“‘]", text)), 0)
+        len(re.findall(r"[，。！？；：、）】”’][ \t]|[ \t][（【“‘]", text_nomark)), 0)
 
     # ---------- 标点层：INFO ----------
     em = text.count("——")
@@ -103,8 +136,7 @@ def collect(text, tier, para_max, lyrical):
         add(FAIL, "标点层", "破折号 [短文本应删]", em, 0)
 
     # ---------- 排版 ----------
-    add(FAIL, "排版", "编号式小标题",
-        len(re.findall(r"^\s{0,6}(?:[0-9]{1,2}[、.．)）]|[一二三四五六七八九十]+[、.．]|0[0-9]\s)", text, re.M)), 0)
+    add(FAIL, "排版", "编号式小标题", len(HEADING_NUM_RE.findall(text_nomark)), 0)
 
     paras = body_paragraphs(text)
     lens = [cjk_len(p) for p in paras] or [0]

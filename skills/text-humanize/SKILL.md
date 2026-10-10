@@ -10,7 +10,7 @@ description: >
   文艺腔、抒情段落、现代诗短句、小说叙事段落、长篇稿件。亦用于 去AI味、去文艺腔、查AI痕迹、humanize。
 ---
 
-- **Version**: 1.3.0
+- **Version**: 1.3.1
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/better-office-work-flow/tree/main/skills/text-humanize
